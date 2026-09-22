@@ -32,15 +32,13 @@ static_assert(sizeof(DNSPacket) == 12);
 
 struct DNSAnswer
 {
-	uint8_t __storage[12];
-	BAN::NetworkEndian<uint16_t>& name()		{ return *reinterpret_cast<BAN::NetworkEndian<uint16_t>*>(__storage + 0x00); };
-	BAN::NetworkEndian<uint16_t>& type()		{ return *reinterpret_cast<BAN::NetworkEndian<uint16_t>*>(__storage + 0x02); };
-	BAN::NetworkEndian<uint16_t>& class_()		{ return *reinterpret_cast<BAN::NetworkEndian<uint16_t>*>(__storage + 0x04); };
-	BAN::NetworkEndian<uint32_t>& ttl()			{ return *reinterpret_cast<BAN::NetworkEndian<uint32_t>*>(__storage + 0x06); };
-	BAN::NetworkEndian<uint16_t>& data_len()	{ return *reinterpret_cast<BAN::NetworkEndian<uint16_t>*>(__storage + 0x0A); };
-	uint8_t data[];
+	uint8_t __storage[10];
+	const BAN::NetworkEndian<uint16_t>& type()     const { return *reinterpret_cast<const BAN::NetworkEndian<uint16_t>*>(__storage + 0); };
+	const BAN::NetworkEndian<uint16_t>& class_()   const { return *reinterpret_cast<const BAN::NetworkEndian<uint16_t>*>(__storage + 2); };
+	const BAN::NetworkEndian<uint32_t>& ttl()      const { return *reinterpret_cast<const BAN::NetworkEndian<uint32_t>*>(__storage + 4); };
+	const BAN::NetworkEndian<uint16_t>& data_len() const { return *reinterpret_cast<const BAN::NetworkEndian<uint16_t>*>(__storage + 8); };
 };
-static_assert(sizeof(DNSAnswer) == 12);
+static_assert(sizeof(DNSAnswer) == 10);
 
 enum QTYPE : uint16_t
 {
@@ -138,8 +136,7 @@ struct DNSResponse
 
 bool send_dns_query(int socket, BAN::StringView domain, uint16_t id)
 {
-	static uint8_t buffer[4096];
-	memset(buffer, 0, sizeof(buffer));
+	uint8_t buffer[4096] {};
 
 	DNSPacket& request = *reinterpret_cast<DNSPacket*>(buffer);
 	request.identification	= id;
@@ -176,92 +173,89 @@ bool send_dns_query(int socket, BAN::StringView domain, uint16_t id)
 
 BAN::Optional<DNSResponse> read_dns_response(int socket)
 {
-	static uint8_t buffer[4096];
+	uint8_t response_storage[4096];
 
-	ssize_t nrecv = recvfrom(socket, buffer, sizeof(buffer), 0, nullptr, nullptr);
+	const ssize_t nrecv = recvfrom(socket, response_storage, sizeof(response_storage), 0, nullptr, nullptr);
 	if (nrecv == -1)
 	{
 		dprintln("recvfrom: {}", strerror(errno));
 		return {};
 	}
 
-	DNSPacket& reply = *reinterpret_cast<DNSPacket*>(buffer);
+	auto response_span = BAN::ConstByteSpan { response_storage, static_cast<size_t>(nrecv) };
 
-	DNSResponse result;
-	result.id = reply.identification;
+	const auto& response = response_span.as<const DNSPacket>();
 
-	if (reply.flags & 0x0F)
+	DNSResponse result {};
+	result.id = response.identification;
+
+	if (response.flags & 0x0F)
 	{
-		dprintln("DNS error (rcode {})", (unsigned)(reply.flags & 0xF));
+		dprintln("DNS error (rcode {})", static_cast<unsigned>(response.flags & 0xF));
 		return result;
 	}
 
-	size_t idx = reply.data - buffer;
-	for (size_t i = 0; i < reply.question_count; i++)
+	response_span = response_span.slice(sizeof(DNSPacket));
+	for (size_t i = 0; i < response.question_count; i++)
 	{
-		while (buffer[idx])
-			idx += buffer[idx] + 1;
-		idx += 5;
+		while (response_span[0])
+			response_span = response_span.slice(response_span[0] + 1);
+		response_span = response_span.slice(1 + 4);
 	}
 
-	const auto read_name =
-		[](size_t idx) -> BAN::String
+	const auto read_name_literal = [](BAN::ConstByteSpan& span) -> BAN::String {
+		BAN::String result;
+		while (span[0])
 		{
-			BAN::String result;
-			while (buffer[idx])
-			{
-				if ((buffer[idx] & 0xC0) == 0xC0)
-				{
-					idx = ((buffer[idx] & 0x3F) << 8) | buffer[idx + 1];
-					continue;
-				}
-
-				MUST(result.append(BAN::StringView(reinterpret_cast<const char*>(&buffer[idx + 1]), buffer[idx])));
-				MUST(result.push_back('.'));
-				idx += buffer[idx] + 1;
-			}
-
 			if (!result.empty())
-				result.pop_back();
-			return result;
-		};
+				MUST(result.push_back('.'));
+			MUST(result.append(BAN::StringView { span.as_span<const char>().data() + 1, span[0] }));
+			span = span.slice(1 + span[0]);
+		}
+		span = span.slice(1);
+		return result;
+	};
 
-	for (size_t i = 0; i < reply.answer_count; i++)
+	const auto read_name = [&](BAN::ConstByteSpan& span) -> BAN::String {
+		if ((span[0] & 0xC0) != 0xC0)
+			return read_name_literal(span);
+
+		const uint16_t offset = ((span[0] & 0x3F) << 8) | span[1];
+		span = span.slice(2);
+
+		auto label = BAN::ConstByteSpan { response_storage + offset, static_cast<size_t>(nrecv - offset) };
+		return read_name_literal(label);
+	};
+
+	for (size_t i = 0; i < response.answer_count; i++)
 	{
-		auto& answer = *reinterpret_cast<DNSAnswer*>(&buffer[idx]);
+		auto name = read_name(response_span);
 
-		auto name = read_name(answer.__storage - buffer);
+		const auto& answer = response_span.as<const DNSAnswer>();
+		response_span = response_span.slice(sizeof(DNSAnswer));
 
-		if (answer.type() == QTYPE::A)
+		switch (answer.type())
 		{
-			if (answer.data_len() != 4)
-			{
-				dprintln("Invalid A record size {}", (uint16_t)answer.data_len());
-				return result;
-			}
-
-			MUST(result.entries.push_back({
-				.name = BAN::move(name),
-				.entry = {
-					BAN::IPv4Address(*reinterpret_cast<uint32_t*>(answer.data)),
-					time(nullptr) + answer.ttl(),
-				},
-			}));
+			case QTYPE::A:
+				MUST(result.entries.push_back({
+					.name = BAN::move(name),
+					.entry = {
+						BAN::IPv4Address(response_span.as<const uint32_t>()),
+						time(nullptr) + answer.ttl(),
+					},
+				}));
+				response_span = response_span.slice(sizeof(uint32_t));
+				break;
+			case QTYPE::CNAME:
+				MUST(result.entries.push_back({
+					.name = BAN::move(name),
+					.entry = {
+						read_name(response_span),
+						time(nullptr) + answer.ttl()
+					},
+				}));
+				break;
 		}
-		else if (answer.type() == QTYPE::CNAME)
-		{
-			auto target = read_name(answer.data - buffer);
-
-			MUST(result.entries.push_back({
-				.name = BAN::move(name),
-				.entry = {
-					BAN::move(target),
-					time(nullptr) + answer.ttl()
-				},
-			}));
-		}
-
-		idx += sizeof(DNSAnswer) + answer.data_len();
 	}
 
 	return result;
@@ -453,7 +447,7 @@ int main(int, char**)
 
 				if (send(client.socket, &addr, sizeof(addr), 0) == -1)
 					dprintln("send: {}", strerror(errno));
-				dwarnln("{} -> {}", client.query.data(), inet_ntoa({ .s_addr = resolved->raw }));
+				dprintln("resolved {} -> {}", client.query.data(), inet_ntoa({ .s_addr = resolved->raw }));
 				client.close = true;
 				break;
 			}
