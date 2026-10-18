@@ -162,7 +162,6 @@ void Terminal::run()
 		m_cursor_blink_ms = ts.tv_sec * 1'000 + ts.tv_nsec / 1'000'000;
 	}
 
-	MUST(m_cursor_buffer.resize(m_font.width() * m_font.height(), m_bg_color));
 	show_cursor();
 
 	m_window->set_resize_window_event_callback([&] {
@@ -202,13 +201,8 @@ void Terminal::run()
 			m_window->invalidate(m_window->width() - rem, 0, rem, m_window->height());
 		}
 
-		if (m_cursor.x >= cols() || m_cursor.y >= rows())
-		{
-			m_cursor.x = BAN::Math::min(m_cursor.x, cols() - 1);
-			m_cursor.y = BAN::Math::min(m_cursor.y, rows() - 1);
-			for (auto& pixel : m_cursor_buffer)
-				pixel = m_bg_color;
-		}
+		m_cursor.x = BAN::Math::min(m_cursor.x, cols() - 1);
+		m_cursor.y = BAN::Math::min(m_cursor.y, rows() - 1);
 
 		const winsize winsize {
 			.ws_row = static_cast<unsigned short>(rows()),
@@ -452,32 +446,51 @@ void Terminal::hide_cursor()
 {
 	if (m_cursor.x == cols())
 		return;
-	auto& texture = m_window->texture();
-	const uint32_t cursor_base_x = m_cursor.x * m_font.width();
-	const uint32_t cursor_base_y = m_cursor.y * m_font.height();
-	for (uint32_t y = 0; y < m_font.height(); y++)
-		for (uint32_t x = 0; x < m_font.width(); x++)
-			texture.set_pixel(cursor_base_x + x, cursor_base_y + y, m_cursor_buffer[y * m_font.width() + x]);
-	m_window->invalidate(cursor_base_x, cursor_base_y, m_font.width(), m_font.height());
+
+	const auto& cell = m_cells[m_cursor.y * cols() + m_cursor.x];
+	m_window->texture().fill_rect(
+		m_cursor.x * m_font.width(),
+		m_cursor.y * m_font.height(),
+		m_font.width(),
+		m_font.height(),
+		cell.bg_color
+	);
+	m_window->texture().draw_character(
+		cell.codepoint,
+		m_font,
+		m_cursor.x * m_font.width(),
+		m_cursor.y * m_font.height(),
+		cell.fg_color
+	);
+	m_window->invalidate(
+		m_cursor.x * m_font.width(),
+		m_cursor.y * m_font.height(),
+		m_font.width(),
+		m_font.height()
+	);
 }
 
 void Terminal::show_cursor()
 {
+	if (!m_cursor_shown || !m_cursor_blink_shown)
+		return;
 	if (m_cursor.x == cols())
 		return;
-	auto& texture = m_window->texture();
-	const uint32_t cursor_base_x = m_cursor.x * m_font.width();
-	const uint32_t cursor_base_y = m_cursor.y * m_font.height();
-	for (uint32_t y = 0; y < m_font.height(); y++)
-		for (uint32_t x = 0; x < m_font.width(); x++)
-			m_cursor_buffer[y * m_font.width() + x] = texture.get_pixel(cursor_base_x + x, cursor_base_y + y);
-	if (m_cursor_shown && m_cursor_blink_shown)
-	{
-		for (uint32_t y = m_font.height() * 13 / 16; y < m_font.height() - 1; y++)
-			for (uint32_t x = 0; x < m_font.width(); x++)
-				texture.set_pixel(cursor_base_x + x, cursor_base_y + y, 0xFFFFFFFF);
-		m_window->invalidate(cursor_base_x, cursor_base_y, m_font.width(), m_font.height());
-	}
+
+	const uint32_t y_offset = m_font.height() * 13 / 16;
+	m_window->texture().fill_rect(
+		m_cursor.x * m_font.width(),
+		m_cursor.y * m_font.height() + y_offset,
+		m_font.width(),
+		m_font.height() - y_offset - 1,
+		0xFFFFFFFF
+	);
+	m_window->invalidate(
+		m_cursor.x * m_font.width(),
+		m_cursor.y * m_font.height(),
+		m_font.width(),
+		m_font.height()
+	);
 }
 
 bool Terminal::read_shell()
