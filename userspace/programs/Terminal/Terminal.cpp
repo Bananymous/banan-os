@@ -182,10 +182,11 @@ void Terminal::run()
 			m_cells_rows = rows();
 			m_cells_cols = cols();
 
-			if (m_selection_s_col != UINT32_MAX)
+			if (m_cur_selection.has_value())
 			{
-				m_selection_s_col = m_selection_s_row = UINT32_MAX;
-				update_selection();
+				m_cur_selection = {};
+				if (const auto invalidate = show_selection(); invalidate.width && invalidate.height)
+					m_window->invalidate(invalidate.x, invalidate.y, invalidate.width, invalidate.height);
 			}
 		}
 
@@ -224,18 +225,18 @@ void Terminal::run()
 			{
 				case LibInput::Key::C:
 				{
-					if (m_selection_s_col == UINT32_MAX)
+					if (!m_cur_selection.has_value())
 						break;
 
-					const uint32_t m_selection_start = m_selection_s_row * cols() + m_selection_s_col;
-					const uint32_t m_selection_end   = m_selection_e_row * cols() + m_selection_e_col;
+					const uint32_t selection_start = m_cur_selection->start.y * cols() + m_cur_selection->start.x;
+					const uint32_t selection_end   = m_cur_selection->  end.y * cols() + m_cur_selection->  end.x;
 
-					uint32_t selection_min = BAN::Math::min(m_selection_start, m_selection_end);
+					uint32_t selection_min = BAN::Math::min(selection_start, selection_end);
 					for (; selection_min < m_cells.size(); selection_min++)
 						if (m_cells[selection_min].codepoint != 0)
 							break;
 
-					uint32_t selection_max = BAN::Math::max(m_selection_start, m_selection_end);
+					uint32_t selection_max = BAN::Math::max(selection_start, selection_end);
 					for (; selection_max >= selection_min; selection_max--)
 						if (m_cells[selection_max].codepoint != 0)
 							break;
@@ -295,36 +296,41 @@ void Terminal::run()
 	});
 
 	m_window->set_mouse_move_event_callback([&](LibGUI::EventPacket::MouseMoveEvent::event_t event) {
-		if (!m_selecting)
+		if (!m_is_selecting)
 			return;
-
-		m_selection_e_col = BAN::Math::clamp<int32_t>(event.x / static_cast<int32_t>(m_font.width()),  0, cols() - 1);
-		m_selection_e_row = BAN::Math::clamp<int32_t>(event.y / static_cast<int32_t>(m_font.height()), 0, rows() - 1);
-
-		update_selection();
+		m_cur_selection->end = {
+			.x = static_cast<uint32_t>(BAN::Math::clamp<int32_t>(event.x / static_cast<int32_t>(m_font.width()),  0, cols() - 1)),
+			.y = static_cast<uint32_t>(BAN::Math::clamp<int32_t>(event.y / static_cast<int32_t>(m_font.height()), 0, rows() - 1)),
+		};
+		if (const auto invalidate = show_selection(); invalidate.width && invalidate.height)
+			m_window->invalidate(invalidate.x, invalidate.y, invalidate.width, invalidate.height);
 	});
 
 	m_window->set_mouse_button_event_callback([&](LibGUI::EventPacket::MouseButtonEvent::event_t event) {
 		switch (event.button)
 		{
 			case LibInput::MouseButton::Right:
-				if (!m_selecting)
-					m_selection_s_col = m_selection_s_row = UINT32_MAX;
-				m_selecting = false;
+				if (!m_is_selecting)
+					m_cur_selection = {};
+				m_is_selecting = false;
 				break;
 			case LibInput::MouseButton::Left:
 				if (event.pressed)
 				{
-					m_selection_e_col = m_selection_s_col = BAN::Math::clamp<int32_t>(event.x / static_cast<int32_t>(m_font.width()),  0, cols() - 1);
-					m_selection_e_row = m_selection_s_row = BAN::Math::clamp<int32_t>(event.y / static_cast<int32_t>(m_font.height()), 0, rows() - 1);
+					m_cur_selection = Selection {};
+					m_cur_selection->start = m_cur_selection->end = {
+						.x = static_cast<uint32_t>(BAN::Math::clamp<int32_t>(event.x / static_cast<int32_t>(m_font.width()),  0, cols() - 1)),
+						.y = static_cast<uint32_t>(BAN::Math::clamp<int32_t>(event.y / static_cast<int32_t>(m_font.height()), 0, rows() - 1)),
+					};
 				}
-				m_selecting = event.pressed;
+				m_is_selecting = event.pressed;
 				break;
 			default:
-				break;
+				return;
 		}
 
-		update_selection();
+		if (const auto invalidate = show_selection(); invalidate.width && invalidate.height)
+			m_window->invalidate(invalidate.x, invalidate.y, invalidate.width, invalidate.height);
 	});
 
 	const int max_fd = BAN::Math::max(m_shell_info.pts_master, m_window->server_fd());
@@ -371,75 +377,55 @@ void Terminal::run()
 	}
 }
 
-void Terminal::update_selection(bool show)
+Rectangle Terminal::show_selection()
 {
-	static uint32_t old_selection_s_col = UINT32_MAX;
-	static uint32_t old_selection_s_row = UINT32_MAX;
-	static uint32_t old_selection_e_col = 0;
-	static uint32_t old_selection_e_row = 0;
-
-	if (old_selection_s_col != UINT32_MAX)
+	if (m_old_selection.has_value())
 	{
-		old_selection_s_col = BAN::Math::min(old_selection_s_col, cols() - 1);
-		old_selection_s_row = BAN::Math::min(old_selection_s_row, rows() - 1);
-		old_selection_e_col = BAN::Math::min(old_selection_e_col, cols() - 1);
-		old_selection_e_row = BAN::Math::min(old_selection_e_row, rows() - 1);
+		auto& selection = m_old_selection.value();
+		selection.start.x = BAN::Math::min(selection.start.x, cols() - 1);
+		selection.start.y = BAN::Math::min(selection.start.y, rows() - 1);
+		selection.  end.x = BAN::Math::min(selection.  end.x, cols() - 1);
+		selection.  end.y = BAN::Math::min(selection.  end.y, rows() - 1);
 	}
 
 	Rectangle invalidate {};
 
-	const auto redraw_character =
-		[this, &invalidate](size_t index, bool selected)
-		{
-			const uint32_t col = index % cols();
-			const uint32_t row = index / cols();
-			const uint32_t x = col * m_font.width();
-			const uint32_t y = row * m_font.height();
-			const auto cell = m_cells[row * cols() + col];
-			if (selected && cell.codepoint == 0)
-				return;
-			m_window->texture().fill_rect(x, y, m_font.width(), m_font.height(), selected ? s_default_fg_color : cell.bg_color);
-			m_window->texture().draw_character(cell.codepoint, m_font, x, y, selected ? s_default_bg_color : cell.fg_color);
-			invalidate = invalidate.get_bounding_box({ x, y, m_font.width(), m_font.height() });
-		};
+	const auto redraw_character = [this, &invalidate](size_t index, bool selected) {
+		const uint32_t col = index % cols();
+		const uint32_t row = index / cols();
+		const uint32_t x = col * m_font.width();
+		const uint32_t y = row * m_font.height();
+		const auto& cell = m_cells[row * cols() + col];
+		if (selected && cell.codepoint == 0)
+			return;
+		m_window->texture().fill_rect(x, y, m_font.width(), m_font.height(), selected ? s_default_fg_color : cell.bg_color);
+		m_window->texture().draw_character(cell.codepoint, m_font, x, y, selected ? s_default_bg_color : cell.fg_color);
+		invalidate = invalidate.get_bounding_box({ x, y, m_font.width(), m_font.height() });
+	};
 
-	if (old_selection_s_col != UINT32_MAX)
+	if (m_old_selection.has_value())
 	{
-		const uint32_t old_selection_start = old_selection_s_row * cols() + old_selection_s_col;
-		const uint32_t old_selection_end   = old_selection_e_row * cols() + old_selection_e_col;
+		const uint32_t old_selection_start = m_old_selection->start.y * cols() + m_old_selection->start.x;
+		const uint32_t old_selection_end   = m_old_selection->  end.y * cols() + m_old_selection->  end.x;
 		const auto old_selection_min = BAN::Math::min(old_selection_start, old_selection_end);
 		const auto old_selection_max = BAN::Math::max(old_selection_start, old_selection_end);
 		for (size_t i = old_selection_min; i <= old_selection_max; i++)
 			redraw_character(i, false);
 	}
 
-	if (show && m_selection_s_col != UINT32_MAX)
+	if (m_cur_selection.has_value())
 	{
-		const uint32_t new_selection_start = m_selection_s_row * cols() + m_selection_s_col;
-		const uint32_t new_selection_end   = m_selection_e_row * cols() + m_selection_e_col;
-		const auto new_selection_min = BAN::Math::min(new_selection_start, new_selection_end);
-		const auto new_selection_max = BAN::Math::max(new_selection_start, new_selection_end);
-		for (size_t i = new_selection_min; i <= new_selection_max; i++)
+		const uint32_t cur_selection_start = m_cur_selection->start.y * cols() + m_cur_selection->start.x;
+		const uint32_t cur_selection_end   = m_cur_selection->  end.y * cols() + m_cur_selection->  end.x;
+		const auto cur_selection_min = BAN::Math::min(cur_selection_start, cur_selection_end);
+		const auto cur_selection_max = BAN::Math::max(cur_selection_start, cur_selection_end);
+		for (size_t i = cur_selection_min; i <= cur_selection_max; i++)
 			redraw_character(i, true);
 	}
 
-	if (invalidate.width && invalidate.height)
-		m_window->invalidate(invalidate.x, invalidate.y, invalidate.width, invalidate.height);
+	m_old_selection = m_cur_selection;
 
-	if (show)
-	{
-		old_selection_s_col = m_selection_s_col;
-		old_selection_s_row = m_selection_s_row;
-		old_selection_e_col = m_selection_e_col;
-		old_selection_e_row = m_selection_e_row;
-	}
-	else
-	{
-		old_selection_s_col = UINT32_MAX;
-		old_selection_s_row = UINT32_MAX;
-		old_selection_e_col = 0;
-		old_selection_e_row = 0;
-	}
+	return invalidate;
 }
 
 void Terminal::hide_cursor()
@@ -1040,11 +1026,6 @@ Rectangle Terminal::handle_csi(char ch)
 
 Rectangle Terminal::scroll(uint32_t scroll)
 {
-	const bool has_selection = (m_selection_s_col != UINT32_MAX);
-
-	if (has_selection)
-		update_selection(false);
-
 	for (size_t i = 0; i < rows() - scroll; i++)
 		for (size_t x = 0; x < cols(); x++)
 			m_cells[i * cols() + x] = m_cells[(i + scroll) * cols() + x];
@@ -1065,29 +1046,32 @@ Rectangle Terminal::scroll(uint32_t scroll)
 	const size_t y_off = (rows() - scroll) * m_font.height();
 	texture.fill_rect(0, y_off, m_window->width(), m_window->height() - y_off, m_bg_color);
 
-	if (has_selection)
+	if (m_cur_selection.has_value())
 	{
-		if (m_selection_s_row < scroll && m_selection_e_row < scroll)
-			m_selection_s_col = m_selection_s_row = UINT32_MAX;
+		m_old_selection = {};
+
+		if (m_cur_selection->start.y < scroll && m_cur_selection->start.y < scroll)
+			m_cur_selection = {};
 		else
 		{
-			if (m_selection_s_row >= scroll)
-				m_selection_s_row -= scroll;
+			if (m_cur_selection->start.y >= scroll)
+				m_cur_selection->start.y -= scroll;
 			else
 			{
-				m_selection_s_row = 0;
-				m_selection_s_col = 0;
+				m_cur_selection->start.y = 0;
+				m_cur_selection->start.x = 0;
 			}
 
-			if (m_selection_e_row >= scroll)
-				m_selection_e_row -= scroll;
+			if (m_cur_selection->end.y >= scroll)
+				m_cur_selection->end.y -= scroll;
 			else
 			{
-				m_selection_e_row = 0;
-				m_selection_e_col = 0;
+				m_cur_selection->end.y = 0;
+				m_cur_selection->end.x = 0;
 			}
 		}
-		update_selection();
+
+		show_selection();
 	}
 
 	return { 0, 0, m_window->width(), m_window->height() };

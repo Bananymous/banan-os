@@ -42,7 +42,7 @@ private:
 	Rectangle putchar(uint8_t ch);
 	bool read_shell();
 
-	void update_selection(bool show = true);
+	Rectangle show_selection();
 
 	BAN::Optional<uint32_t> get_8bit_color();
 	BAN::Optional<uint32_t> get_24bit_color();
@@ -55,7 +55,7 @@ private:
 	void start_shell();
 
 private:
-	struct Cursor
+	struct Position
 	{
 		uint32_t x;
 		uint32_t y;
@@ -90,6 +90,12 @@ private:
 		bool bold;
 	};
 
+	struct Selection
+	{
+		Position start;
+		Position end;
+	};
+
 private:
 	BAN::UniqPtr<LibGUI::Window> m_window;
 	LibFont::Font m_font;
@@ -101,17 +107,15 @@ private:
 	uint32_t m_cells_rows { 0 };
 	uint32_t m_cells_cols { 0 };
 
-	uint32_t m_selection_s_col { UINT32_MAX };
-	uint32_t m_selection_s_row { UINT32_MAX };
-	uint32_t m_selection_e_col { UINT32_MAX };
-	uint32_t m_selection_e_row { UINT32_MAX };
-	bool m_selecting { false };
+	BAN::Optional<Selection> m_cur_selection;
+	BAN::Optional<Selection> m_old_selection;
+	bool m_is_selecting { false };
 	bool m_brackted_paste_mode { false };
 
 	bool m_cursor_shown { true };
 	bool m_cursor_blink_shown { true };
 	uint64_t m_cursor_blink_ms { 0 };
-	Cursor m_cursor { 0, 0 };
+	Position m_cursor { 0, 0 };
 	bool m_got_key_event { false };
 
 	uint8_t m_utf8_index { 0 };
@@ -119,7 +123,7 @@ private:
 
 	uint32_t m_last_graphic_char { 0 };
 
-	Cursor m_saved_cursor { 0, 0 };
+	Position m_saved_cursor { 0, 0 };
 	uint32_t m_fg_color { 0 };
 	uint32_t m_bg_color { 0 };
 	bool m_colors_inverted { false };
