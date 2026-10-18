@@ -158,8 +158,8 @@ void Terminal::run()
 	{
 		timespec ts;
 		clock_gettime(CLOCK_MONOTONIC, &ts);
-		m_cursor_blink_shown = true;
 		m_cursor_blink_ms = ts.tv_sec * 1'000 + ts.tv_nsec / 1'000'000;
+		m_cursor_blink_toggle = true;
 	}
 
 	show_cursor();
@@ -279,7 +279,6 @@ void Terminal::run()
 						if (m_brackted_paste_mode)
 							write(m_shell_info.pts_master, "\e[201~", 6);
 					}
-					m_got_key_event = true;
 
 					break;
 				}
@@ -292,7 +291,11 @@ void Terminal::run()
 
 		if (const char* text = LibInput::key_to_utf8_ansi(event.key, event.modifier))
 			write(m_shell_info.pts_master, text, strlen(text));
-		m_got_key_event = true;
+
+		timespec ts;
+		clock_gettime(CLOCK_MONOTONIC, &ts);
+		m_cursor_blink_ms = ts.tv_sec * 1'000 + ts.tv_nsec / 1'000'000;
+		m_cursor_blink_toggle = true;
 	});
 
 	m_window->set_mouse_move_event_callback([&](LibGUI::EventPacket::MouseMoveEvent::event_t event) {
@@ -356,11 +359,9 @@ void Terminal::run()
 			continue;
 		if (nselect == 0)
 		{
-			m_cursor_blink_shown = !m_cursor_blink_shown;
 			m_cursor_blink_ms = current_ms + ms_until_blink;
+			m_cursor_blink_toggle = !m_cursor_blink_toggle;
 		}
-
-		m_got_key_event = false;
 
 		hide_cursor();
 		if (FD_ISSET(m_shell_info.pts_master, &fds))
@@ -368,11 +369,6 @@ void Terminal::run()
 				break;
 		if (FD_ISSET(m_window->server_fd(), &fds))
 			m_window->poll_events();
-		if (m_got_key_event)
-		{
-			m_cursor_blink_shown = true;
-			m_cursor_blink_ms = current_ms;
-		}
 		show_cursor();
 	}
 }
@@ -458,7 +454,7 @@ void Terminal::hide_cursor()
 
 void Terminal::show_cursor()
 {
-	if (!m_cursor_shown || !m_cursor_blink_shown)
+	if (!m_cursor_shown || !m_cursor_blink_toggle)
 		return;
 	if (m_cursor.x == cols())
 		return;
