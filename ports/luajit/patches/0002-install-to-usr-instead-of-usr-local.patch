@@ -1,0 +1,25 @@
+From e4aed77c91969e7b5d9a2ddd4522a22365242ac1 Mon Sep 17 00:00:00 2001
+From: Oskari Alaranta <oskari.alaranta@bananymous.com>
+Date: Wed, 31 Dec 2025 00:52:22 +0200
+Subject: [PATCH] install to /usr instead of /usr/local
+
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index c41b3345..d4d5fe0c 100644
+--- a/Makefile
++++ b/Makefile
+@@ -30,7 +30,7 @@ VERSION= $(MMVERSION).$(RELVER)
+ # Change the installation path as needed. This automatically adjusts
+ # the paths in src/luaconf.h, too. Note: PREFIX must be an absolute path!
+ #
+-export PREFIX= /usr/local
++export PREFIX= /usr
+ export MULTILIB= lib
+ ##############################################################################
+ 
+-- 
+2.52.0
+

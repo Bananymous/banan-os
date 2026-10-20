@@ -1,0 +1,25 @@
+From 3d8260f95561cacd2662cb5bf10fd275f644a87e Mon Sep 17 00:00:00 2001
+From: Oskari Alaranta <oskari.alaranta@bananymous.com>
+Date: Wed, 31 Dec 2025 00:38:21 +0200
+Subject: [PATCH] define banan-os target
+
+---
+ src/lj_arch.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/lj_arch.h b/src/lj_arch.h
+index 5f388068..234c92e5 100644
+--- a/src/lj_arch.h
++++ b/src/lj_arch.h
+@@ -99,6 +99,8 @@
+ #elif defined(__GNU__)
+ #define LJ_TARGET_HURD		1
+ #define LUAJIT_OS	LUAJIT_OS_POSIX
++#elif defined(__banan_os__)
++#define LUAJIT_OS	LUAJIT_OS_POSIX
+ #else
+ #define LUAJIT_OS	LUAJIT_OS_OTHER
+ #endif
+-- 
+2.52.0
+
