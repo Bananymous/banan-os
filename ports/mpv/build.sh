@@ -13,6 +13,7 @@ DEPENDENCIES=(
 	'libjpeg-turbo'
 	'libplacebo'
 	'sdl2-compat'
+	'luajit'
 )
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
@@ -20,6 +21,7 @@ CONFIGURE_OPTIONS=(
 	'-Db_lundef=true'
 	'-Dsdl2-audio=enabled'
 	'-Dsdl2-video=enabled'
+	'-Dlua=luajit'
 )
 
 configure() {
