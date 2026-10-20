@@ -199,10 +199,10 @@ int list_directory(const BAN::String& path, Config config)
 		MUST(entries.emplace_back(path, st, BAN::String()));
 		if (S_ISLNK(st.st_mode))
 		{
-			if (readlink(path.data(), link_buffer, sizeof(link_buffer)) == -1)
+			if (const ssize_t ret = readlink(path.data(), link_buffer, sizeof(link_buffer)); ret == -1)
 				perror("readlink");
 			else
-				MUST(entries.back().link.append(link_buffer));
+				MUST(entries.back().link.append({ link_buffer, static_cast<size_t>(ret) }));
 		}
 	}
 	else
@@ -243,10 +243,10 @@ int list_directory(const BAN::String& path, Config config)
 			MUST(entries.emplace_back(BAN::StringView(dirent->d_name), st, BAN::String()));
 			if (S_ISLNK(st.st_mode))
 			{
-				if (readlinkat(dirfd(dirp), dirent->d_name, link_buffer, sizeof(link_buffer)) == -1)
+				if (const auto ret = readlinkat(dirfd(dirp), dirent->d_name, link_buffer, sizeof(link_buffer)); ret == -1)
 					perror("readlink");
 				else
-					MUST(entries.back().link.append(link_buffer));
+					MUST(entries.back().link.append({ link_buffer, static_cast<size_t>(ret) }));
 			}
 		}
 

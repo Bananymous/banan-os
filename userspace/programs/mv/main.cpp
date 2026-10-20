@@ -96,6 +96,8 @@ static int copy_file(const char* src, const char* dst)
 		int result = 0;
 		if (link_len == -1)
 			result = errno;
+		if (result == 0)
+			buffer[link_len] = '\0';
 		if (result == 0 && symlink(buffer, dst) == -1)
 			result = errno;
 		if (result == 0 && unlink(src) == -1)

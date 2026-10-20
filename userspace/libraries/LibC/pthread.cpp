@@ -66,8 +66,10 @@ static void _init_pthread()
 		uthread->attr.stacksize = value;
 
 	char buffer[PATH_MAX];
-	if (readlink("/proc/self/exe", buffer, sizeof(buffer)) == -1)
+	const ssize_t link_len = readlink("/proc/self/exe", buffer, sizeof(buffer) - 1);
+	if (link_len == -1)
 		exit(0xFF);
+	buffer[link_len] = '\0';
 
 	const char* last_slash = strrchr(buffer, '/');
 	if (last_slash == nullptr)
