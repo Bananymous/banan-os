@@ -322,6 +322,20 @@ template<unsigned_integral T> extern int __builtin_popcountg(T);
 	}
 
 	template<floating_point T>
+	inline constexpr T expm1(T x)
+	{
+		x *= numbers::log2e_v<T>;
+
+		if (abs<T>(x) <= (T)1.0)
+		{
+			asm("f2xm1" : "+t"(x));
+			return x;
+		}
+
+		return exp2<T>(x) - (T)1.0;
+	}
+
+	template<floating_point T>
 	inline constexpr T pow(T x, T y)
 	{
 		if (x == (T)0.0)
