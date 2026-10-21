@@ -320,6 +320,18 @@ struct servent* getservbyname(const char* name, const char* proto)
 	return nullptr;
 }
 
+struct servent* getservbyport(int port, const char* proto)
+{
+	dwarnln("TODO: getservbyport(\"{}\", \"{}\")", port, proto);
+	return nullptr;
+}
+
+struct protoent* getprotobyname(const char* name)
+{
+	dwarnln("TODO: getprotobyname(\"{}\")", name);
+	return nullptr;
+}
+
 struct protoent* getprotobynumber(int proto)
 {
 	dwarnln("TODO: getprotobynumber({})", proto);
