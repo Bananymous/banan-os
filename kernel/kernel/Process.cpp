@@ -3716,6 +3716,14 @@ namespace Kernel
 			return 0;
 		}
 
+		for (size_t i = 0; i < m_exited_threads.size(); i++)
+		{
+			if (m_exited_threads[i].tid != tid)
+				continue;
+			m_exited_threads.remove(i);
+			return 0;
+		}
+
 		return BAN::Error::from_errno(ESRCH);
 	}
 
