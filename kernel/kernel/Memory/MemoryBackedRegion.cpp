@@ -44,12 +44,12 @@ namespace Kernel
 
 	BAN::ErrorOr<bool> MemoryBackedRegion::allocate_page_containing_impl(vaddr_t address, bool wants_write)
 	{
+		LockGuard _(m_mutex);
+
 		ASSERT(m_type == Type::PRIVATE);
 		ASSERT(contains(address));
 
 		const vaddr_t vaddr = address & PAGE_ADDR_MASK;
-
-		LockGuard _(m_mutex);
 
 		auto& physical_page = m_physical_pages[(vaddr - m_vaddr) / PAGE_SIZE];
 
@@ -106,9 +106,9 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> MemoryBackedRegion::clone(PageTable& new_page_table)
 	{
-		ASSERT(&PageTable::current() == &m_page_table);
-
 		LockGuard _(m_mutex);
+
+		ASSERT(&PageTable::current() == &m_page_table);
 
 		const size_t aligned_size = (m_size + PAGE_SIZE - 1) & PAGE_ADDR_MASK;
 		auto result = TRY(MemoryBackedRegion::create(new_page_table, m_size, { .start = m_vaddr, .end = m_vaddr + aligned_size }, m_type, m_flags, m_status_flags));
@@ -129,10 +129,10 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> MemoryBackedRegion::split(size_t offset)
 	{
+		LockGuard _(m_mutex);
+
 		ASSERT(offset && offset < m_size);
 		ASSERT(offset % PAGE_SIZE == 0);
-
-		LockGuard _(m_mutex);
 
 		auto* new_region_ptr = new MemoryBackedRegion(m_page_table, m_size - offset, m_type, m_flags, m_status_flags);
 		if (new_region_ptr == nullptr)
@@ -157,9 +157,9 @@ namespace Kernel
 
 	BAN::ErrorOr<void> MemoryBackedRegion::copy_data_to_region(size_t offset_into_region, const uint8_t* buffer, size_t buffer_size)
 	{
-		ASSERT(offset_into_region + buffer_size <= m_size);
-
 		LockGuard _(m_mutex);
+
+		ASSERT(offset_into_region + buffer_size <= m_size);
 
 		size_t written = 0;
 		while (written < buffer_size)
@@ -186,6 +186,32 @@ namespace Kernel
 
 			written += bytes;
 		}
+
+		return {};
+	}
+
+	BAN::ErrorOr<void> MemoryBackedRegion::merge_with(MemoryBackedRegion& region)
+	{
+		LockGuard _0(m_mutex);
+		LockGuard _1(region.m_mutex);
+
+		ASSERT(flags() == region.flags());
+		ASSERT(type()  == region.type());
+
+		region.wait_not_pinned();
+
+		ASSERT(region.vaddr() == ((m_vaddr + m_size + PAGE_SIZE - 1) & PAGE_ADDR_MASK));
+
+		const size_t old_pages = m_physical_pages.size();
+		TRY(m_physical_pages.resize(old_pages + region.m_physical_pages.size()));
+		for (size_t i = 0; i < region.m_physical_pages.size(); i++)
+			m_physical_pages[old_pages + i] = region.m_physical_pages[i];
+
+		m_size = (region.vaddr() + region.size()) - m_vaddr;
+
+		region.m_vaddr = 0;
+		region.m_size  = 0;
+		region.m_physical_pages.clear();
 
 		return {};
 	}

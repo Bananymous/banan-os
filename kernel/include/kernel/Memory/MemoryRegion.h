@@ -56,6 +56,8 @@ namespace Kernel
 		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) = 0;
 		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> split(size_t offset) = 0;
 
+		virtual bool is_anonymous() const { return false; }
+
 	protected:
 		MemoryRegion(PageTable&, size_t size, Type type, PageTable::flags_t flags, int status_flags);
 		BAN::ErrorOr<void> initialize(AddressRange);

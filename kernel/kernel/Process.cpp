@@ -2754,7 +2754,31 @@ namespace Kernel
 			));
 
 			const vaddr_t region_vaddr = region->vaddr();
-			TRY(add_mapped_region(BAN::move(region)));
+
+			const auto can_merge_anon_regions = [](MemoryRegion& a, MemoryRegion& b) -> bool {
+				if (!a.is_anonymous() || !b.is_anonymous())
+					return false;
+				if (a.flags() != b.flags())
+					return false;
+				if (a.type() != b.type())
+					return false;
+				return ((a.vaddr() + a.size() + PAGE_SIZE - 1) & PAGE_ADDR_MASK) == b.vaddr();
+			};
+
+			size_t index = find_mapped_region(region->vaddr());
+			if (index > 0 && index - 1 < m_mapped_regions.size() && can_merge_anon_regions(*m_mapped_regions[index - 1], *region))
+				TRY(static_cast<MemoryBackedRegion*>(m_mapped_regions[index - 1].ptr())->merge_with(*region));
+			else
+				TRY(m_mapped_regions.insert(index++, BAN::move(region)));
+
+			if (index + 1 < m_mapped_regions.size() && can_merge_anon_regions(*m_mapped_regions[index], *m_mapped_regions[index + 1]))
+			{
+				auto& region1 = static_cast<MemoryBackedRegion&>(*m_mapped_regions[index + 0]);
+				auto& region2 = static_cast<MemoryBackedRegion&>(*m_mapped_regions[index + 1]);
+				TRY(region1.merge_with(region2));
+				m_mapped_regions.remove(index + 1);
+			}
+
 			return region_vaddr;
 		}
 
