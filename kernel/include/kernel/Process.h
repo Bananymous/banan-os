@@ -353,8 +353,6 @@ namespace Kernel
 		{
 			Mutex mutex;
 			ThreadBlocker blocker;
-			uint32_t waiters { 0 };
-			uint32_t to_wakeup { 0 };
 		};
 
 		static BAN::HashMap<paddr_t, BAN::UniqPtr<futex_t>> s_futexes;

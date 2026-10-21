@@ -3412,63 +3412,28 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_futex(int op, const uint32_t* addr, uint32_t val, const timespec* user_abstime)
+	BAN::ErrorOr<long> Process::sys_futex(int op, const uint32_t* user_addr, uint32_t val, const timespec* user_abstime)
 	{
-		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(addr);
-		if (vaddr % 4)
-			return BAN::Error::from_errno(EINVAL);
-
 		const bool is_realtime = (op & FUTEX_REALTIME);
-		const bool is_private = (op & FUTEX_PRIVATE);
+		const bool is_private  = (op & FUTEX_PRIVATE);
 		op &= ~(FUTEX_PRIVATE | FUTEX_REALTIME);
 
-		BAN::Vector<MemoryRegion*> regions;
-		BAN::ScopeGuard _0([&] { for (auto* region : regions) region->unpin(); });
-		TRY(validate_and_pin_pointer_access(addr, sizeof(uint32_t), false, regions));
-
-		const paddr_t paddr = m_page_table->physical_address_of(vaddr & PAGE_ADDR_MASK) | (vaddr & ~PAGE_ADDR_MASK);
-		ASSERT(paddr != 0);
-
-		switch (op)
-		{
-			case FUTEX_WAIT:
-				break;
-			case FUTEX_WAKE:
-				user_abstime = nullptr;
-				break;
-			default:
-				return BAN::Error::from_errno(ENOSYS);
-		}
-
-		if (op == FUTEX_WAIT && BAN::atomic_load(*addr) != val)
-			return BAN::Error::from_errno(EAGAIN);
-
-		uint64_t wake_time_ns = BAN::numeric_limits<uint64_t>::max();
-
-		if (user_abstime != nullptr)
-		{
-			timespec abstime;
-			TRY(read_from_user(user_abstime, &abstime, sizeof(timespec)));
-
-			const uint64_t abstime_ns = abstime.tv_sec * 1'000'000'000 + abstime.tv_nsec;
-
-			if (!is_realtime)
-				wake_time_ns = abstime_ns;
-			else
-			{
-				const auto realtime = SystemTimer::get().real_time();
-				const uint64_t realtime_ns = realtime.tv_sec * 1'000'000'000 + realtime.tv_nsec;
-				if (abstime_ns <= realtime_ns)
-					return BAN::Error::from_errno(ETIMEDOUT);
-				wake_time_ns = SystemTimer::get().ns_since_boot() + (abstime_ns - realtime_ns);
-			}
-		}
+		if (op != FUTEX_WAIT && op != FUTEX_WAKE)
+			return BAN::Error::from_errno(ENOSYS);
 
 		futex_t* futex;
 
 		{
+			// NOTE: makes sure the address is valid and the page is mapped
+			TRY(read_atomic_u32_from_user(user_addr));
+
+			const vaddr_t vaddr = reinterpret_cast<vaddr_t>(user_addr);
+			const paddr_t paddr = m_page_table->physical_address_of(vaddr & PAGE_ADDR_MASK) | (vaddr & ~PAGE_ADDR_MASK);
+			if (paddr == 0)
+				return BAN::Error::from_errno(EFAULT);
+
 			auto& futex_lock = is_private ? m_futex_lock : s_futex_lock;
-			auto& futexes = is_private ? m_futexes : s_futexes;
+			auto& futexes    = is_private ? m_futexes    : s_futexes;
 
 			LockGuard _(futex_lock);
 
@@ -3485,49 +3450,48 @@ namespace Kernel
 			}
 		}
 
-		LockGuard _1(futex->mutex);
+		LockGuard _(futex->mutex);
 
 		switch (op)
 		{
 			case FUTEX_WAIT:
-			{
-				if (BAN::atomic_load(*addr) != val)
+				if (TRY(read_atomic_u32_from_user(user_addr)) != val)
 					return BAN::Error::from_errno(EAGAIN);
 
-				futex->waiters++;
-
-				// TODO: Deallocate unused futex objects at some point (?)
-				//       We don't want to do it on every operation as allocation
-				//       and deletion slows this down a lot and the same addresses
-				//       will be probably used again
-				BAN::ScopeGuard cleanup([futex] { futex->waiters--; });
-
-				for (;;)
-				{
-					TRY(Thread::current().block_or_eintr_or_waketime_ns(futex->blocker, wake_time_ns, true, &futex->mutex));
-					if (BAN::atomic_load(*addr) == val || futex->to_wakeup == 0)
-						continue;
-					futex->to_wakeup--;
-					return 0;
-				}
-			}
-			case FUTEX_WAKE:
-			{
-				if (BAN::Math::will_addition_overflow(futex->to_wakeup, val))
-					futex->to_wakeup = BAN::numeric_limits<uint32_t>::max();
+				if (user_abstime == nullptr)
+					TRY(Thread::current().block_or_eintr_indefinite(futex->blocker, &futex->mutex));
 				else
-					futex->to_wakeup += val;
+				{
+					timespec abstime;
+					TRY(read_from_user(user_abstime, &abstime, sizeof(timespec)));
+					const uint64_t abstime_ns = abstime.tv_sec * 1'000'000'000 + abstime.tv_nsec;
 
-				futex->to_wakeup = BAN::Math::min(futex->to_wakeup, futex->waiters);
+					uint64_t wake_time_ns;
+					if (!is_realtime)
+					{
+						if (abstime_ns <= SystemTimer::get().ns_since_boot())
+							return BAN::Error::from_errno(ETIMEDOUT);
+						wake_time_ns = abstime_ns;
+					}
+					else
+					{
+						const auto realtime = SystemTimer::get().real_time();
+						const uint64_t realtime_ns = realtime.tv_sec * 1'000'000'000 + realtime.tv_nsec;
+						if (abstime_ns <= realtime_ns)
+							return BAN::Error::from_errno(ETIMEDOUT);
+						wake_time_ns = SystemTimer::get().ns_since_boot() + (abstime_ns - realtime_ns);
+					}
 
-				if (futex->to_wakeup > 0)
-					futex->blocker.unblock();
+					TRY(Thread::current().block_or_eintr_or_waketime_ns(futex->blocker, wake_time_ns, true, &futex->mutex));
+				}
 
-				return 0;
-			}
+				break;
+			case FUTEX_WAKE:
+				futex->blocker.unblock(val);
+				break;
 		}
 
-		ASSERT_NOT_REACHED();
+		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_yield()
