@@ -1,6 +1,7 @@
 #include <BAN/Atomic.h>
 #include <BAN/HashMap.h>
 #include <BAN/Optional.h>
+#include <BAN/RefPtr.h>
 #include <BAN/String.h>
 
 #include <alloca.h>
@@ -50,6 +51,8 @@ struct DynamicInfo
 	uintptr_t symtab;
 	uint32_t syment;
 
+	uintptr_t soname;
+
 	uintptr_t rpath;
 	uintptr_t runpath;
 
@@ -77,9 +80,13 @@ struct DynamicInfo
 	bool textrel;
 };
 
-struct LoadedObject
+struct LoadedObject : BAN::RefCounted<LoadedObject>
 {
-	const char* full_path  { nullptr };
+	~LoadedObject();
+
+	char* full_path  { nullptr };
+	char* soname     { nullptr };
+
 	uintptr_t base_address { 0 };
 	uintptr_t entry_point  { 0 };
 
@@ -100,7 +107,7 @@ struct LoadedObject
 
 	BAN::Vector<LoadedObject*> scope_roots;
 	BAN::Vector<LoadedObject*> lookup_scope;
-	BAN::Vector<LoadedObject*> dependencies;
+	BAN::Vector<BAN::RefPtr<LoadedObject>> dependencies;
 
 	bool checked_symbol_table { false };
 	const uint8_t* symtab { nullptr };
@@ -109,14 +116,18 @@ struct LoadedObject
 	size_t syment { 0 };
 };
 
-static LoadedObject s_self {};
+// NOTE: we allocate "self" aka libc as just memory to avoid destructor getting called
+//       on exit which is messy with out refcounting
+alignas(LoadedObject) static uint8_t s_self_storage[sizeof(LoadedObject)];
+static inline LoadedObject& self() { return *reinterpret_cast<LoadedObject*>(s_self_storage); }
 
 static size_t s_next_tls_module { 1 };
 static _dynamic_tls_t* s_dynamic_tls { nullptr };
 static constexpr size_t s_max_tls_modules { sizeof(uthread::dtv) / sizeof(*uthread::dtv) - 1 };
 
-static LoadedObject* s_global_scope { nullptr };
+static BAN::RefPtr<LoadedObject> s_global_scope { nullptr };
 static BAN::HashMap<BAN::String, LoadedObject*> s_loaded_objects;
+static BAN::HashMap<BAN::String, LoadedObject*> s_loaded_sonames;
 static const char* s_ld_library_path { nullptr };
 static const char* s_ld_preload { nullptr };
 
@@ -134,18 +145,59 @@ struct ScopedGlobalLock
 {
 	ScopedGlobalLock()
 	{
+		m_saved_errno = errno;
 		pthread_mutex_lock(&m_mutex);
 	}
 
 	~ScopedGlobalLock()
 	{
 		pthread_mutex_unlock(&m_mutex);
+		errno = m_saved_errno;
 	}
 
 private:
 	static pthread_mutex_t m_mutex;
+	int m_saved_errno { 0 };
 };
-pthread_mutex_t ScopedGlobalLock::m_mutex { PTHREAD_MUTEX_INITIALIZER };
+pthread_mutex_t ScopedGlobalLock::m_mutex { { PTHREAD_MUTEX_RECURSIVE, 0 }, 0, 0, 0 };
+
+LoadedObject::~LoadedObject()
+{
+	using fini_t = void(*)();
+	for (size_t i = 0; i < dynamic.fini_arraysz / sizeof(fini_t); i++)
+		reinterpret_cast<fini_t*>(dynamic.fini_array)[i]();
+	if (dynamic.fini)
+		reinterpret_cast<fini_t>(dynamic.fini)();
+
+	for (const auto& program_header : program_headers)
+		munmap(reinterpret_cast<void*>(program_header.p_vaddr), program_header.p_memsz);
+
+	s_loaded_objects.remove(BAN::StringView { full_path });
+	free(full_path);
+
+	if (soname != nullptr)
+	{
+		s_loaded_sonames.remove(BAN::StringView { soname });
+		free(soname);
+	}
+
+	for (const auto& [_, loaded] : s_loaded_objects)
+	{
+		const auto cleanup_vector = [this](BAN::Vector<LoadedObject*>& vector) {
+			for (size_t i = 0; i < vector.size(); i++)
+				if (vector[i] == this)
+					vector.remove(i--);
+		};
+		cleanup_vector(loaded->scope_roots);
+		cleanup_vector(loaded->lookup_scope);
+	}
+
+	if (tls_header.has_value())
+		dprintln("TODO: dlclose leaking TLS module");
+
+	if (strtab || symtab)
+		dprintln("TODO: dlclose leaking string table");
+}
 
 static uint32_t elf_hash(BAN::StringView name)
 {
@@ -210,7 +262,7 @@ static FindSymbolInScopeResult find_symbol_in_scope(const LoadedObject& object, 
 		}
 	}
 
-	for (const auto& scope_root : object.scope_roots)
+	for (const auto* scope_root : object.scope_roots)
 	{
 		for (const auto* lookup : scope_root->lookup_scope)
 		{
@@ -529,6 +581,7 @@ static void parse_dynamic_info(LoadedObject& object, BAN::Span<const Elf_Dyn> dy
 			case DT_FINI:         info.fini         = dynamic.d_un.d_ptr + base; break;
 			case DT_FINI_ARRAY:   info.fini_array   = dynamic.d_un.d_ptr + base; break;
 			case DT_FINI_ARRAYSZ: info.fini_arraysz = dynamic.d_un.d_val;        break;
+			case DT_SONAME:       info.soname       = dynamic.d_un.d_val;        break;
 			case DT_RPATH:        info.rpath        = dynamic.d_un.d_val;        break;
 			case DT_RUNPATH:      info.runpath      = dynamic.d_un.d_val;        break;
 			case DT_SYMBOLIC:     info.symbolic     = true;                      break;
@@ -695,6 +748,9 @@ static bool validate_file_header(const Elf_Ehdr& file_header)
 
 static char* find_library(const LoadedObject& object, BAN::StringView needed_name)
 {
+	if (auto it = s_loaded_sonames.find(needed_name); it != s_loaded_sonames.end())
+		return strdup(it->value->full_path);
+
 	if (needed_name.contains('/'))
 	{
 		char* buffer = static_cast<char*>(alloca(needed_name.size() + 1));
@@ -717,7 +773,6 @@ static char* find_library(const LoadedObject& object, BAN::StringView needed_nam
 		append_buffer(needed_name.data(), needed_name.size());
 		append_buffer("\0", 1);
 
-		// FIXME: this should do DT_SONAME lookup, maybe a dynamic loader cache?
 		return realpath(buffer, nullptr);
 	};
 
@@ -759,12 +814,12 @@ static void promote_to_global(LoadedObject& object)
 	ASSERT(!s_global_scope->lookup_scope.contains(&object));
 	MUST(s_global_scope->lookup_scope.push_back(&object));
 
-	for (auto* dependency : object.dependencies)
+	for (auto dependency : object.dependencies)
 		promote_to_global(*dependency);
 }
 
 // NOTE: this takes ownership of full_path
-static LoadedObject* load_object(char* full_path, int fd, bool load_local)
+static BAN::RefPtr<LoadedObject> load_object(char* full_path, int fd, bool load_local)
 {
 	struct path_deleter {
 		~path_deleter() { if (to_free) free(to_free); }
@@ -778,48 +833,41 @@ static LoadedObject* load_object(char* full_path, int fd, bool load_local)
 		return it->value;
 	}
 
-	if (strcmp(full_path, s_self.full_path) == 0)
+	if (auto& self = ::self(); strcmp(full_path, self.full_path) == 0)
 	{
-		auto* object = static_cast<LoadedObject*>(malloc(sizeof(LoadedObject)));
-		if (object == nullptr)
-			return nullptr;
-		new (object) LoadedObject();
+		if (s_loaded_objects.insert(BAN::StringView { self.full_path }, &self).is_error())
+			return {};
 
-		if (s_loaded_objects.insert(BAN::String(s_self.full_path), object).is_error())
+		if (self.dynamic.soname)
 		{
-			object->~LoadedObject();
-			free(object);
-			return nullptr;
+			self.soname = strdup(reinterpret_cast<const char*>(self.dynamic.strtab) + self.dynamic.soname);
+			if (self.soname == nullptr)
+				return {};
+			if (s_loaded_sonames.insert(BAN::StringView { self.soname }, &self).is_error())
+				return {};
 		}
 
-		*object = BAN::move(s_self);
-		object->full_path = full_path;
-		if (uintptr_t* pltgot = reinterpret_cast<uintptr_t*>(object->dynamic.pltgot))
-			pltgot[1] = reinterpret_cast<uintptr_t>(&object);
-
-		path_deleter.to_free = nullptr;
-
-		return object;
+		return &self;
 	}
 
 	const bool fd_needs_close = (fd == -1);
 	if (fd == -1 && (fd = open(full_path, O_RDONLY)) == -1)
-		return nullptr;
+		return {};
 
 	Elf_Ehdr file_header;
 	if (pread(fd, &file_header, sizeof(file_header), 0) != sizeof(file_header))
-		return nullptr;
+		return {};
 	if (!validate_file_header(file_header))
-		return nullptr;
+		return {};
 
 	BAN::Vector<Elf_Phdr> program_headers;
 	MUST(program_headers.resize(file_header.e_phnum));
 	for (size_t i = 0, offset = file_header.e_phoff; i < program_headers.size(); i++, offset += file_header.e_phentsize)
 	{
 		if (pread(fd, &program_headers[i], sizeof(Elf_Phdr), offset) != sizeof(Elf_Phdr))
-			return nullptr;
+			return {};
 		if (program_headers[i].p_memsz < program_headers[i].p_filesz)
-			return nullptr;
+			return {};
 	}
 
 	uintptr_t base_address;
@@ -827,7 +875,7 @@ static LoadedObject* load_object(char* full_path, int fd, bool load_local)
 	{
 		base_address = 0;
 		if (!can_load_object(program_headers.span(), base_address))
-			return nullptr;
+			return {};
 	}
 	else if (file_header.e_type == ET_DYN)
 	{
@@ -835,7 +883,7 @@ static LoadedObject* load_object(char* full_path, int fd, bool load_local)
 			if (getrandom(&base_address, sizeof(base_address), 0) != sizeof(base_address))
 			{
 				fprintf(stderr, "could not generate a random number: %m\n");
-				return nullptr;
+				return {};
 			}
 #if defined(__x86_64__)
 		base_address &= 0x7FFFFFFFF000;
@@ -848,7 +896,7 @@ static LoadedObject* load_object(char* full_path, int fd, bool load_local)
 	}
 	else
 	{
-		return nullptr;
+		return {};
 	}
 
 	for (auto& program_header : program_headers)
@@ -862,16 +910,16 @@ static LoadedObject* load_object(char* full_path, int fd, bool load_local)
 			continue;
 
 		if (dynamic_header_vaddr != 0)
-			return nullptr;
+			return {};
 		dynamic_header_vaddr = program_header.p_vaddr;
 
 		const size_t max_dynamics = program_header.p_memsz / sizeof(Elf_Dyn);
 		if (dynamics.resize(max_dynamics).is_error())
-			return nullptr;
+			return {};
 
 		const ssize_t dynamics_bytes = dynamics.size() * sizeof(Elf_Dyn);
 		if (pread(fd, dynamics.data(), dynamics_bytes, program_header.p_offset) != dynamics_bytes)
-			return nullptr;
+			return {};
 
 		for (size_t i = 0; i < dynamics.size(); i++)
 		{
@@ -882,27 +930,21 @@ static LoadedObject* load_object(char* full_path, int fd, bool load_local)
 		}
 	}
 
-	auto* object = static_cast<LoadedObject*>(malloc(sizeof(LoadedObject)));
-	if (object == nullptr)
-		return nullptr;
-	new (object) LoadedObject();
+	auto object_or_error = BAN::RefPtr<LoadedObject>::create();
+	if (object_or_error.is_error())
+		return {};
 
+	auto object = object_or_error.release_value();
 	object->is_local = load_local;
 	object->base_address = base_address;
 	object->entry_point = base_address + file_header.e_entry;
 	object->full_path = full_path;
-	parse_dynamic_info(*object, dynamics.span());
-
-	if (s_loaded_objects.insert(BAN::String { full_path }, object).is_error())
-	{
-		object->~LoadedObject();
-		free(object);
-		return nullptr;
-	}
-
 	path_deleter.to_free = nullptr;
 
-	// FIXME: memory leaks after this point if loading fails (object, mapped headers, dependencies)
+	parse_dynamic_info(*object, dynamics.span());
+
+	if (s_loaded_objects.insert(BAN::StringView { full_path }, object.ptr()).is_error())
+		return {};
 
 	for (const auto& program_header : program_headers)
 	{
@@ -924,16 +966,25 @@ static LoadedObject* load_object(char* full_path, int fd, bool load_local)
 				break;
 			case PT_LOAD:
 				if (!load_program_header(program_header, fd, object->dynamic.textrel))
-					return nullptr;
+					return {};
 				break;
 			default:
 				fprintf(stderr, "unsupported program header type %x\n", program_header.p_type);
-				return nullptr;
+				return {};
 		}
 	}
 
 	object->file_header = file_header;
 	object->program_headers = BAN::move(program_headers);
+
+	if (object->dynamic.soname)
+	{
+		object->soname = strdup(reinterpret_cast<const char*>(object->dynamic.strtab) + object->dynamic.soname);
+		if (object->soname == nullptr)
+			return {};
+		if (s_loaded_sonames.insert(BAN::StringView { object->soname }, object.ptr()).is_error())
+			return {};
+	}
 
 	// do relocations without symbols
 	if (object->dynamic.rel && object->dynamic.relent)
@@ -947,14 +998,14 @@ static LoadedObject* load_object(char* full_path, int fd, bool load_local)
 	if (uintptr_t* pltgot = reinterpret_cast<uintptr_t*>(object->dynamic.pltgot))
 	{
 		pltgot[0] = dynamic_header_vaddr;
-		pltgot[1] = reinterpret_cast<uintptr_t>(object);
+		pltgot[1] = reinterpret_cast<uintptr_t>(object.ptr());
 		pltgot[2] = reinterpret_cast<uintptr_t>(_resolve_symbol_trampoline);
 	}
 
 	const auto load_dependency = [object, load_local](BAN::StringView name) -> bool {
 		if (char* full_path = find_library(*object, name); full_path == nullptr)
 			return false;
-		else if (auto* dependency = load_object(full_path, -1, load_local); dependency == nullptr)
+		else if (auto dependency = load_object(full_path, -1, load_local); !dependency)
 			return false;
 		else if (object->dependencies.push_back(dependency).is_error())
 			return false;
@@ -980,7 +1031,7 @@ static LoadedObject* load_object(char* full_path, int fd, bool load_local)
 		if (dynamic.d_tag != DT_NEEDED)
 			continue;
 		if (!load_dependency(reinterpret_cast<const char*>(object->dynamic.strtab + dynamic.d_un.d_val)))
-			return nullptr;
+			return {};
 	}
 
 	if (fd_needs_close)
@@ -996,7 +1047,7 @@ static void relocate_object(LoadedObject& object, bool bind_now)
 	object.relocated = true;
 
 	// relocate libraries
-	for (auto* dependency : object.dependencies)
+	for (auto dependency : object.dependencies)
 		relocate_object(*dependency, bind_now);
 
 	// do mandatory relocations
@@ -1059,7 +1110,7 @@ static void call_init_funcs(LoadedObject& object, bool is_main_elf, size_t depth
 		return;
 	object.called_init = true;
 
-	for (auto* dependency : object.dependencies)
+	for (auto dependency : object.dependencies)
 		call_init_funcs(*dependency, false, depth + 1);
 
 	// main executable calls its own init functions in _start
@@ -1089,7 +1140,7 @@ static void register_fini_funcs(LoadedObject& object, bool is_main_elf)
 			atexit(reinterpret_cast<fini_t>(object.dynamic.fini));
 	}
 
-	for (auto* dependency : object.dependencies)
+	for (auto dependency : object.dependencies)
 		register_fini_funcs(*dependency, false);
 }
 
@@ -1103,12 +1154,12 @@ static void build_lookup_scope(LoadedObject& root_object)
 	while (!current_layer.empty())
 	{
 		BAN::Vector<LoadedObject*> next_layer;
-		for (auto* object : current_layer)
+		for (auto object : current_layer)
 		{
 			MUST(root_object.lookup_scope.push_back(object));
-			for (auto* dependency : object->dependencies)
-				if (!root_object.lookup_scope.contains(dependency) && !current_layer.contains(dependency) && !next_layer.contains(dependency))
-					MUST(next_layer.push_back(dependency));
+			for (auto dependency : object->dependencies)
+				if (!root_object.lookup_scope.contains(dependency.ptr()) && !current_layer.contains(dependency.ptr()) && !next_layer.contains(dependency.ptr()))
+					MUST(next_layer.push_back(dependency.ptr()));
 		}
 		current_layer = BAN::move(next_layer);
 	}
@@ -1118,9 +1169,8 @@ static void add_scope_root(LoadedObject& object, LoadedObject* scope_root)
 {
 	if (object.scope_roots.contains(scope_root))
 		return;
-
 	MUST(object.scope_roots.push_back(scope_root));
-	for (auto* dependency : object.dependencies)
+	for (auto dependency : object.dependencies)
 		add_scope_root(*dependency, scope_root);
 }
 
@@ -1160,11 +1210,11 @@ static void load_dynamic_master_tls_recursive(LoadedObject& object)
 
 	if (object.tls_header.has_value())
 		load_dynamic_master_tls();
-	for (auto* dependency : object.dependencies)
+	for (auto dependency : object.dependencies)
 		load_dynamic_master_tls_recursive(*dependency);
 }
 
-static LoadedObject* find_object_containing(const void* address)
+static const LoadedObject* find_object_containing(const void* address)
 {
 	const uintptr_t address_uptr = reinterpret_cast<uintptr_t>(address);
 	for (const auto& [_, loaded_object] : s_loaded_objects)
@@ -1187,8 +1237,8 @@ char* dlerror(void)
 
 int dlclose(void* handle)
 {
-	// TODO: maybe actually close handles? (not required by spec)
-	(void)handle;
+	ScopedGlobalLock _;
+	static_cast<LoadedObject*>(handle)->unref();
 	return 0;
 }
 
@@ -1200,15 +1250,27 @@ void* dlopen(const char* file, int mode)
 		return nullptr;
 	}
 
+	ScopedGlobalLock _;
+
 	const bool load_lazy  = (mode & _RTLD_LAZY_NOW_MASK)     == RTLD_LAZY;
 	const bool load_local = (mode & _RTLD_GLOBAL_LOCAL_MASK) == RTLD_LOCAL;
 
 	if (file == nullptr)
-		return s_global_scope;
+	{
+		s_global_scope->ref();
+		return s_global_scope.ptr();
+	}
 
-	LoadedObject* source_object = s_global_scope;
-	if (auto* return_object = find_object_containing(__builtin_return_address(0)))
-		source_object = return_object;
+	// NOTE: fast path soname lookup to avoid looking up calling object
+	if (auto it = s_loaded_sonames.find(BAN::StringView { file }); it != s_loaded_sonames.end())
+	{
+		if (it->value->is_local && !load_local)
+			promote_to_global(*it->value);
+		it->value->ref();
+		return it->value;
+	}
+
+	const auto* source_object = find_object_containing(__builtin_return_address(0)) ?: s_global_scope.ptr();
 
 	char* full_path = find_library(*source_object, file);
 	if (full_path == nullptr)
@@ -1217,57 +1279,53 @@ void* dlopen(const char* file, int mode)
 		return nullptr;
 	}
 
-	LoadedObject* object;
-
+	if (auto it = s_loaded_objects.find(BAN::StringView { full_path }); it != s_loaded_objects.end())
 	{
-		ScopedGlobalLock _;
-
-		if (auto it = s_loaded_objects.find(BAN::StringView { full_path }); it != s_loaded_objects.end())
-		{
-			if (it->value->is_local && !load_local)
-				promote_to_global(*it->value);
-			free(full_path);
-			return it->value;
-		}
-
-		if (mode & RTLD_NOLOAD)
-		{
-			free(full_path);
-			return nullptr;
-		}
-
-		if (!(object = load_object(full_path, -1, load_local)))
-		{
-			s_dlerror_string = "failed to load?";
-			return nullptr;
-		}
-
-		add_scope_root(*object, s_global_scope);
-
-		build_lookup_scope(*object);
-		if (load_local)
-			add_scope_root(*object, object);
-		else
-		{
-			for (auto* lookup : object->lookup_scope)
-				if (!s_global_scope->lookup_scope.contains(lookup))
-					MUST(s_global_scope->lookup_scope.push_back(lookup));
-			object->lookup_scope.clear();
-		}
-
-		ASSERT(!object->relocated);
-		ASSERT(!object->called_init);
-		ASSERT(!object->registered_fini);
-
-		relocate_object(*object, !load_lazy);
-
-		load_dynamic_master_tls_recursive(*object);
+		free(full_path);
+		if (it->value->is_local && !load_local)
+			promote_to_global(*it->value);
+		it->value->ref();
+		return it->value;
 	}
 
-	call_init_funcs(*object, false);
-	register_fini_funcs(*object, false);
+	if (mode & RTLD_NOLOAD)
+	{
+		free(full_path);
+		return nullptr;
+	}
 
-	return object;
+	const auto object = load_object(full_path, -1, load_local);
+	if (!object)
+	{
+		s_dlerror_string = "failed to load?";
+		return nullptr;
+	}
+
+	add_scope_root(*object, s_global_scope.ptr());
+
+	build_lookup_scope(*object);
+	if (load_local)
+		add_scope_root(*object, object.ptr());
+	else
+	{
+		for (auto lookup : object->lookup_scope)
+			if (!s_global_scope->lookup_scope.contains(lookup))
+				MUST(s_global_scope->lookup_scope.push_back(lookup));
+		object->lookup_scope.clear();
+	}
+
+	ASSERT(!object->relocated);
+	ASSERT(!object->called_init);
+	ASSERT(!object->registered_fini);
+
+	relocate_object(*object, !load_lazy);
+
+	load_dynamic_master_tls_recursive(*object);
+
+	call_init_funcs(*object, false);
+
+	object->ref();
+	return object.ptr();
 }
 
 void* dlsym(void* __restrict handle, const char* __restrict name)
@@ -1289,7 +1347,6 @@ void* dlsym(void* __restrict handle, const char* __restrict name)
 		return nullptr;
 	}
 
-
 	void* weak_address { nullptr };
 	bool found_weak { false };
 
@@ -1304,26 +1361,25 @@ void* dlsym(void* __restrict handle, const char* __restrict name)
 			weak_address = reinterpret_cast<void*>(object->base_address + match->st_value);
 		found_weak = true;
 		return nullptr;
-
 	};
 
 	if (handle == RTLD_NEXT)
 	{
 		const auto* object = find_object_containing(__builtin_return_address(0));
-		if (object == nullptr)
+		if (!object)
 		{
 			s_dlerror_string = "could not determine which object called";
 			return nullptr;
 		}
 
-		for (const auto* root : object->scope_roots)
+		for (const auto& scope_root : object->scope_roots)
 		{
 			size_t i = 0;
-			for (; i < root->lookup_scope.size(); i++)
-				if (root->lookup_scope[i] == object)
+			for (; i < scope_root->lookup_scope.size(); i++)
+				if (scope_root->lookup_scope[i] == object)
 					break;
-			for (i = i + 1; i < root->lookup_scope.size(); i++)
-				if (void* result = check_object(root->lookup_scope[i]))
+			for (i = i + 1; i < scope_root->lookup_scope.size(); i++)
+				if (void* result = check_object(scope_root->lookup_scope[i]))
 					return result;
 		}
 	}
@@ -1335,14 +1391,14 @@ void* dlsym(void* __restrict handle, const char* __restrict name)
 		while (!current_level.empty())
 		{
 			BAN::Vector<const LoadedObject*> next_level;
-			for (const auto* object : current_level)
+			for (const auto& object : current_level)
 			{
 				if (void* result = check_object(object))
 					return result;
 				MUST(checked.push_back(object));
-				for (const auto* dependency : object->dependencies)
-					if (!current_level.contains(dependency) && !next_level.contains(dependency) && !checked.contains(dependency))
-						MUST(next_level.push_back(dependency));
+				for (const auto& dependency : object->dependencies)
+					if (!current_level.contains(dependency.ptr()) && !next_level.contains(dependency.ptr()) && !checked.contains(dependency.ptr()))
+						MUST(next_level.push_back(dependency.ptr()));
 			}
 			current_level = BAN::move(next_level);
 		}
@@ -1429,7 +1485,7 @@ struct FindSymbolResult
 	void* addr;
 };
 
-static FindSymbolResult find_symbol_containing(LoadedObject& object, const void* address)
+static FindSymbolResult find_symbol_containing(const LoadedObject& object, const void* address)
 {
 	const uintptr_t addr_uptr = reinterpret_cast<uintptr_t>(address);
 
@@ -1461,7 +1517,7 @@ static FindSymbolResult find_symbol_containing(LoadedObject& object, const void*
 	{
 		if (object.checked_symbol_table)
 			return {};
-		if (!load_symbol_table(object))
+		if (!load_symbol_table(const_cast<LoadedObject&>(object)))
 			return {};
 	}
 
@@ -1478,7 +1534,7 @@ int dladdr(const void* addr, Dl_info_t* dlip)
 
 	ScopedGlobalLock _;
 
-	auto* object = find_object_containing(addr);
+	const auto* object = find_object_containing(addr);
 	if (object == nullptr)
 		return 0;
 
@@ -1594,29 +1650,20 @@ static void initialize_tls_stage2(MasterTLS master_tls)
 	}
 
 	uthread& uthread = *reinterpret_cast<struct uthread*>(tls_addr + master_tls.size);
-	uthread = {
-		.self = &uthread,
-
-		.master_tls_addr = master_tls.addr,
-		.master_tls_size = master_tls.size,
-		.master_tls_module_count = master_tls.module_count,
-		.dynamic_tls = s_dynamic_tls,
-
-		.id = static_cast<pid_t>(syscall(SYS_THREAD_GETID)),
-		.attr = {},
-		.name = "libc.so",
-		.errno_ = 0,
-		.libc_owns_stack = false,
-		.has_exited = false,
-		.cancel_type = PTHREAD_CANCEL_DEFERRED,
-		.cancel_state = PTHREAD_CANCEL_ENABLE,
-		.canceled = false,
-		.cleanup_funcs = nullptr,
-		.specific_keys = {},
-		.specific_vals = {},
-
-		.dtv = { master_tls.module_count }
-	};
+	memcpy(&uthread, _get_uthread(), sizeof(struct uthread));
+	uthread.self = &uthread;
+	uthread.master_tls_addr = master_tls.addr,
+	uthread.master_tls_size = master_tls.size,
+	uthread.master_tls_module_count = master_tls.module_count,
+	uthread.dynamic_tls = s_dynamic_tls,
+	uthread.dtv[0] = master_tls.module_count;
+#if defined(__x86_64__)
+	_kas_syscall(SYS_SET_FSBASE, &uthread);
+#elif defined(__i686__)
+	_kas_syscall(SYS_SET_GSBASE, &uthread);
+#else
+#error
+#endif
 
 	for (auto* lookup : s_global_scope->lookup_scope)
 	{
@@ -1631,22 +1678,13 @@ static void initialize_tls_stage2(MasterTLS master_tls)
 		ASSERT(!lookup->has_loaded_tls);
 		lookup->has_loaded_tls = true;
 	}
-
-#if defined(__x86_64__)
-	syscall(SYS_SET_FSBASE, &uthread);
-#elif defined(__i686__)
-	syscall(SYS_SET_GSBASE, &uthread);
-#else
-#error
-#endif
 }
 
 static void rerelocate_self()
 {
-	auto it = s_loaded_objects.find(BAN::StringView(s_self.full_path));
-	if (it == s_loaded_objects.end())
+	const auto& self = ::self();
+	if (!s_loaded_objects.contains(BAN::StringView { self.full_path }))
 		return;
-	const auto& self = *it->value;
 
 #if defined(__x86_64__)
 	constexpr uint32_t glob_dat = R_X86_64_GLOB_DAT;
@@ -1691,31 +1729,33 @@ static void copy_relocate_main_object(LoadedObject& object)
 			handle_copy_relocation(object, *reinterpret_cast<Elf_RelA*>(object.dynamic.rela + i * object.dynamic.relaent));
 }
 
-static void relocate_self()
+static void relocate_self(char** envp)
 {
 	static const auto crash_no_return = [][[noreturn]]() {
 		asm volatile("ud2");
 		__builtin_unreachable();
 	};
 
-	const auto& file_header = *reinterpret_cast<Elf_Ehdr*>(s_self.base_address);
+	auto& self = ::self();
+
+	const auto& file_header = *reinterpret_cast<Elf_Ehdr*>(self.base_address);
 	if (!validate_file_header(file_header))
 		crash_no_return();
-	s_self.entry_point = s_self.base_address + file_header.e_entry;
+	self.entry_point = self.base_address + file_header.e_entry;
 
 	// libc should not have TLS section
 	for (size_t i = 0, offset = file_header.e_phoff; i < file_header.e_phnum; i++, offset += file_header.e_phentsize)
-		if (const auto& program_header = *reinterpret_cast<Elf_Phdr*>(s_self.base_address + offset); program_header.p_type == PT_TLS)
+		if (const auto& program_header = *reinterpret_cast<Elf_Phdr*>(self.base_address + offset); program_header.p_type == PT_TLS)
 			crash_no_return();
 
-	const auto& dynamic_header = [&file_header] {
+	const auto& dynamic_header = [&file_header, &self] {
 		for (size_t i = 0, offset = file_header.e_phoff; i < file_header.e_phnum; i++, offset += file_header.e_phentsize)
-			if (const auto& program_header = *reinterpret_cast<Elf_Phdr*>(s_self.base_address + offset); program_header.p_type == PT_DYNAMIC)
+			if (const auto& program_header = *reinterpret_cast<Elf_Phdr*>(self.base_address + offset); program_header.p_type == PT_DYNAMIC)
 				return program_header;
 		crash_no_return();
 	}();
 
-	auto dynamics = BAN::Span { reinterpret_cast<Elf_Dyn*>(s_self.base_address + dynamic_header.p_vaddr), dynamic_header.p_memsz };
+	auto dynamics = BAN::Span { reinterpret_cast<Elf_Dyn*>(self.base_address + dynamic_header.p_vaddr), dynamic_header.p_memsz };
 	for (size_t i = 0; i < dynamics.size(); i++)
 	{
 		if (dynamics[i].d_tag != DT_NULL)
@@ -1726,39 +1766,39 @@ static void relocate_self()
 		break;
 	}
 
-	parse_dynamic_info(s_self, dynamics);
+	parse_dynamic_info(self, dynamics);
 
 	// relocations without symbols
-	if (s_self.dynamic.rel && s_self.dynamic.relent)
-		for (size_t i = 0; i < s_self.dynamic.relsz / s_self.dynamic.relent; i++)
-			handle_relocation(s_self, *reinterpret_cast<Elf_Rel*>(s_self.dynamic.rel + i * s_self.dynamic.relent), false);
-	if (s_self.dynamic.rela && s_self.dynamic.relaent)
-		for (size_t i = 0; i < s_self.dynamic.relasz / s_self.dynamic.relaent; i++)
-			handle_relocation(s_self, *reinterpret_cast<Elf_RelA*>(s_self.dynamic.rela + i * s_self.dynamic.relaent), false);
+	if (self.dynamic.rel && self.dynamic.relent)
+		for (size_t i = 0; i < self.dynamic.relsz / self.dynamic.relent; i++)
+			handle_relocation(self, *reinterpret_cast<Elf_Rel*>(self.dynamic.rel + i * self.dynamic.relent), false);
+	if (self.dynamic.rela && self.dynamic.relaent)
+		for (size_t i = 0; i < self.dynamic.relasz / self.dynamic.relaent; i++)
+			handle_relocation(self, *reinterpret_cast<Elf_RelA*>(self.dynamic.rela + i * self.dynamic.relaent), false);
 
 	// relocations with symbols
-	if (s_self.dynamic.rel && s_self.dynamic.relent)
-		for (size_t i = 0; i < s_self.dynamic.relsz / s_self.dynamic.relent; i++)
-			handle_relocation(s_self, *reinterpret_cast<Elf_Rel*>(s_self.dynamic.rel + i * s_self.dynamic.relent), true);
-	if (s_self.dynamic.rela && s_self.dynamic.relaent)
-		for (size_t i = 0; i < s_self.dynamic.relasz / s_self.dynamic.relaent; i++)
-			handle_relocation(s_self, *reinterpret_cast<Elf_RelA*>(s_self.dynamic.rela + i * s_self.dynamic.relaent), true);
+	if (self.dynamic.rel && self.dynamic.relent)
+		for (size_t i = 0; i < self.dynamic.relsz / self.dynamic.relent; i++)
+			handle_relocation(self, *reinterpret_cast<Elf_Rel*>(self.dynamic.rel + i * self.dynamic.relent), true);
+	if (self.dynamic.rela && self.dynamic.relaent)
+		for (size_t i = 0; i < self.dynamic.relasz / self.dynamic.relaent; i++)
+			handle_relocation(self, *reinterpret_cast<Elf_RelA*>(self.dynamic.rela + i * self.dynamic.relaent), true);
 
-	s_self.relocated = true;
+	self.relocated = true;
 
 	// initialize jump tables, we dont want to resolve symbols inside dynamic loader
 	// TODO: find a way to only relocate functions needed by dynamic loader
-	if (s_self.dynamic.jmprel && s_self.dynamic.pltrelsz)
+	if (self.dynamic.jmprel && self.dynamic.pltrelsz)
 	{
-		switch (s_self.dynamic.pltrel)
+		switch (self.dynamic.pltrel)
 		{
 			case DT_REL:
-				for (size_t i = 0; i < s_self.dynamic.pltrelsz / sizeof(Elf_Rel); i++)
-					handle_relocation(s_self, reinterpret_cast<Elf_Rel*>(s_self.dynamic.jmprel)[i], true);
+				for (size_t i = 0; i < self.dynamic.pltrelsz / sizeof(Elf_Rel); i++)
+					handle_relocation(self, reinterpret_cast<Elf_Rel*>(self.dynamic.jmprel)[i], true);
 				break;
 			case DT_RELA:
-				for (size_t i = 0; i < s_self.dynamic.pltrelsz / sizeof(Elf_RelA); i++)
-					handle_relocation(s_self, reinterpret_cast<Elf_RelA*>(s_self.dynamic.jmprel)[i], true);
+				for (size_t i = 0; i < self.dynamic.pltrelsz / sizeof(Elf_RelA); i++)
+					handle_relocation(self, reinterpret_cast<Elf_RelA*>(self.dynamic.jmprel)[i], true);
 				break;
 			default:
 				ASSERT_NOT_REACHED();
@@ -1766,30 +1806,33 @@ static void relocate_self()
 	}
 
 	// setup required GOT entries
-	if (uintptr_t* pltgot = reinterpret_cast<uintptr_t*>(s_self.dynamic.pltgot))
+	if (uintptr_t* pltgot = reinterpret_cast<uintptr_t*>(self.dynamic.pltgot))
 	{
-		pltgot[0] = s_self.base_address + dynamic_header.p_vaddr;
-		pltgot[1] = reinterpret_cast<uintptr_t>(&s_self);
+		pltgot[0] = self.base_address + dynamic_header.p_vaddr;
+		pltgot[1] = reinterpret_cast<uintptr_t>(&self);
 		pltgot[2] = reinterpret_cast<uintptr_t>(_resolve_symbol_trampoline);
 	}
 
+	if (const auto environ = find_symbol_in_scope(self, "environ"_sv); environ.address)
+		*reinterpret_cast<char***>(environ.address) = envp;
+
 	// call init functions
 	using init_t = void(*)();
-	if (s_self.dynamic.init)
-		reinterpret_cast<init_t>(s_self.dynamic.init)();
-	for (size_t i = 0; i < s_self.dynamic.init_arraysz / sizeof(init_t); i++)
-		reinterpret_cast<init_t*>(s_self.dynamic.init_array)[i]();
-	s_self.called_init = true;
+	if (self.dynamic.init)
+		reinterpret_cast<init_t>(self.dynamic.init)();
+	for (size_t i = 0; i < self.dynamic.init_arraysz / sizeof(init_t); i++)
+		reinterpret_cast<init_t*>(self.dynamic.init_array)[i]();
+	self.called_init = true;
 
 	// don't register lib's fini as it crashes :D
-	s_self.registered_fini = true;
+	self.registered_fini = true;
 
-	s_self.file_header = file_header;
+	self.file_header = file_header;
 	for (size_t i = 0, offset = file_header.e_phoff; i < file_header.e_phnum; i++, offset += file_header.e_phentsize)
 	{
-		auto program_header = *reinterpret_cast<Elf_Phdr*>(s_self.base_address + offset);
-		program_header.p_vaddr += s_self.base_address;
-		MUST(s_self.program_headers.push_back(program_header));
+		auto program_header = *reinterpret_cast<Elf_Phdr*>(self.base_address + offset);
+		program_header.p_vaddr += self.base_address;
+		MUST(self.program_headers.push_back(program_header));
 	}
 }
 
@@ -1868,8 +1911,9 @@ static uintptr_t _libc_main(int argc, char* argv[], char* envp[])
 	ASSERT(base.has_value());
 	ASSERT(execfd.has_value());
 
-	s_self.base_address = base.value();
-	relocate_self();
+	new (s_self_storage) LoadedObject();
+	self().base_address = base.value();
+	relocate_self(envp);
 
 	ASSERT(execfd.has_value());
 
@@ -1881,8 +1925,8 @@ static uintptr_t _libc_main(int argc, char* argv[], char* envp[])
 	}
 
 	// FIXME: can we get this in a more portable way?
-	s_self.full_path = ::realpath("/usr/lib/libc.so", nullptr);
-	if (s_self.full_path == nullptr)
+	self().full_path = ::realpath("/usr/lib/libc.so", nullptr);
+	if (self().full_path == nullptr)
 	{
 		fprintf(stderr, "could not get libc path: %m\n");
 		exit(1);
@@ -1900,16 +1944,19 @@ static uintptr_t _libc_main(int argc, char* argv[], char* envp[])
 		}
 	}
 
-	auto* object = load_object(realpath, execfd.value(), false);
+	const auto object = load_object(realpath, execfd.value(), false);
 	if (object == nullptr)
 	{
 		fprintf(stderr, "could not load main executable: %m\n");
 		exit(1);
 	}
 
+	// NOTE: leak reference to self so doesn't get deallocated on exit
+	object->ref();
+
 	s_global_scope = object;
 	build_lookup_scope(*object);
-	add_scope_root(*object, s_global_scope);
+	add_scope_root(*object, s_global_scope.ptr());
 
 	const auto master_tls = initialize_tls_stage1();
 
@@ -1924,9 +1971,6 @@ static uintptr_t _libc_main(int argc, char* argv[], char* envp[])
 	rerelocate_self();
 
 	initialize_tls_stage2(master_tls);
-
-	if (const auto sym = find_symbol_in_scope(*object, "environ"_sv); sym.address)
-		*reinterpret_cast<char***>(sym.address) = envp;
 
 	call_init_funcs(*object, true);
 	register_fini_funcs(*object, true);
