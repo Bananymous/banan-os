@@ -877,18 +877,18 @@ int pthread_mutex_destroy(pthread_mutex_t* mutex)
 
 int pthread_mutex_init(pthread_mutex_t* __restrict mutex, const pthread_mutexattr_t* __restrict attr)
 {
-	const pthread_mutexattr_t default_attr = {
-		.type = PTHREAD_MUTEX_DEFAULT,
-		.shared = false,
-	};
+	pthread_mutexattr_t default_attr;
+	pthread_mutexattr_init(&default_attr);
 	if (attr == nullptr)
 		attr = &default_attr;
+
 	*mutex = {
 		.attr = *attr,
 		.futex = 0,
 		.waiters = 0,
 		.lock_depth = 0,
 	};
+
 	return 0;
 }
 
@@ -904,12 +904,12 @@ int pthread_mutex_trylock(pthread_mutex_t* mutex)
 	switch (mutex->attr.type)
 	{
 		case PTHREAD_MUTEX_RECURSIVE:
-			if (mutex->futex != tid)
+			if (BAN::atomic_load(mutex->futex) != tid)
 				break;
 			mutex->lock_depth++;
 			return 0;
 		case PTHREAD_MUTEX_ERRORCHECK:
-			if (mutex->futex != tid)
+			if (BAN::atomic_load(mutex->futex) != tid)
 				break;
 			return EDEADLK;
 	}
@@ -939,7 +939,7 @@ int pthread_mutex_timedlock(pthread_mutex_t* __restrict mutex, const struct time
 		const auto err = futex(op, &mutex->futex, expected, abstime);
 		BAN::atomic_sub_fetch(mutex->waiters, 1);
 
-		if (err && err != EAGAIN)
+		if (err && err != EINTR && err != EAGAIN)
 			return err;
 
 		expected = 0;
@@ -951,14 +951,16 @@ int pthread_mutex_timedlock(pthread_mutex_t* __restrict mutex, const struct time
 
 int pthread_mutex_unlock(pthread_mutex_t* mutex)
 {
-	ASSERT(mutex->futex == static_cast<uint32_t>(pthread_self()->id));
+	// NOTE: UB for DEFAULT and NORMAL
+	if (mutex->futex != static_cast<uint32_t>(pthread_self()->id))
+		return EPERM;
 
 	mutex->lock_depth--;
 	if (mutex->lock_depth == 0)
 	{
 		const int op = FUTEX_WAKE | (mutex->attr.shared ? 0 : FUTEX_PRIVATE);
 
-		BAN::atomic_store(mutex->futex, 0, BAN::memory_order_release);
+		BAN::atomic_store(mutex->futex, 0);
 		if (BAN::atomic_load(mutex->waiters))
 			futex(op, &mutex->futex, 1, nullptr);
 	}
@@ -1009,28 +1011,30 @@ int pthread_rwlock_destroy(pthread_rwlock_t* rwlock)
 
 int pthread_rwlock_init(pthread_rwlock_t* __restrict rwlock, const pthread_rwlockattr_t* __restrict attr)
 {
-	const pthread_rwlockattr_t default_attr = {
-		.shared = false,
-	};
+	pthread_rwlockattr_t default_attr;
+	pthread_rwlockattr_init(&default_attr);
 	if (attr == nullptr)
 		attr = &default_attr;
+
 	*rwlock = {
-		.lock = PTHREAD_MUTEX_INITIALIZER,
-		.cond = PTHREAD_COND_INITIALIZER,
-		.writers_waiting = 0,
+		.lock = {},
+		.cond = {},
 		.writer_active = 0,
 		.readers_active = 0,
 	};
+
 	const pthread_mutexattr_t mattr {
 		.type = PTHREAD_MUTEX_DEFAULT,
 		.shared = attr->shared,
 	};
 	pthread_mutex_init(&rwlock->lock, &mattr);
+
 	const pthread_condattr_t cattr {
 		.clock = CLOCK_REALTIME,
 		.shared = attr->shared,
 	};
 	pthread_cond_init(&rwlock->cond, &cattr);
+
 	return 0;
 }
 
@@ -1043,7 +1047,7 @@ int pthread_rwlock_tryrdlock(pthread_rwlock_t* rwlock)
 {
 	int ret = 0;
 	pthread_mutex_lock(&rwlock->lock);
-	if (!rwlock->writers_waiting && !rwlock->writer_active)
+	if (!rwlock->writer_active)
 		rwlock->readers_active++;
 	else
 		ret = EBUSY;
@@ -1055,7 +1059,7 @@ int pthread_rwlock_timedrdlock(pthread_rwlock_t* __restrict rwlock, const struct
 {
 	int ret = 0;
 	pthread_mutex_lock(&rwlock->lock);
-	while (ret == 0 && (rwlock->writers_waiting || rwlock->writer_active))
+	while (ret == 0 && rwlock->writer_active)
 		ret = pthread_cond_timedwait(&rwlock->cond, &rwlock->lock, abstime);
 	if (ret == 0)
 		rwlock->readers_active++;
@@ -1084,10 +1088,8 @@ int pthread_rwlock_timedwrlock(pthread_rwlock_t* __restrict rwlock, const struct
 {
 	int ret = 0;
 	pthread_mutex_lock(&rwlock->lock);
-	rwlock->writers_waiting++;
 	while (ret == 0 && (rwlock->readers_active || rwlock->writer_active))
 		ret = pthread_cond_timedwait(&rwlock->cond, &rwlock->lock, abstime);
-	rwlock->writers_waiting--;
 	if (ret == 0)
 		rwlock->writer_active = 1;
 	pthread_mutex_unlock(&rwlock->lock);
@@ -1104,6 +1106,7 @@ int pthread_rwlock_unlock(pthread_rwlock_t* rwlock)
 	}
 	else
 	{
+		ASSERT(rwlock->readers_active > 0);
 		rwlock->readers_active--;
 		if (rwlock->readers_active == 0)
 			pthread_cond_broadcast(&rwlock->cond);
@@ -1175,16 +1178,16 @@ int pthread_cond_destroy(pthread_cond_t* cond)
 
 int pthread_cond_init(pthread_cond_t* __restrict cond, const pthread_condattr_t* __restrict attr)
 {
-	const pthread_condattr_t default_attr = {
-		.clock = CLOCK_MONOTONIC,
-		.shared = false,
-	};
+	pthread_condattr_t default_attr;
+	pthread_condattr_init(&default_attr);
 	if (attr == nullptr)
 		attr = &default_attr;
+
 	*cond = {
 		.attr = *attr,
 		.futex = 0,
 	};
+
 	return 0;
 }
 
@@ -1224,7 +1227,16 @@ int pthread_cond_timedwait(pthread_cond_t* __restrict cond, pthread_mutex_t* __r
 		const int op = FUTEX_WAIT
 			| (cond->attr.shared ? 0 : FUTEX_PRIVATE)
 			| (cond->attr.clock == CLOCK_REALTIME ? FUTEX_REALTIME : 0);
-		if (const int err = futex(op, &cond->futex, seq, abstime); err != EAGAIN)
+		const int err = futex(op, &cond->futex, seq, abstime);
+
+		// TODO: what if we get canceled before futex()
+		if (const auto* uthread = pthread_self(); uthread->cancel_state == PTHREAD_CANCEL_ENABLE && uthread->canceled)
+		{
+			pthread_mutex_lock(mutex);
+			pthread_exit(PTHREAD_CANCELED);
+		}
+
+		if (err && err != EINTR && err != EAGAIN)
 			ret = err;
 	}
 
@@ -1278,28 +1290,32 @@ int pthread_barrier_init(pthread_barrier_t* __restrict barrier, const pthread_ba
 {
 	if (count == 0)
 		return EINVAL;
-	const pthread_barrierattr_t default_attr = {
-		.shared = false,
-	};
+
+	pthread_barrierattr_t default_attr;
+	pthread_barrierattr_init(&default_attr);
 	if (attr == nullptr)
 		attr = &default_attr;
+
 	*barrier = {
-		.lock = PTHREAD_MUTEX_INITIALIZER,
-		.cond = PTHREAD_COND_INITIALIZER,
+		.lock = {},
+		.cond = {},
 		.target = count,
 		.waiting = 0,
 		.generation = 0,
 	};
+
 	const pthread_mutexattr_t mattr {
 		.type = PTHREAD_MUTEX_DEFAULT,
 		.shared = attr->shared,
 	};
 	pthread_mutex_init(&barrier->lock, &mattr);
+
 	const pthread_condattr_t cattr {
 		.clock = CLOCK_REALTIME,
 		.shared = attr->shared,
 	};
 	pthread_cond_init(&barrier->cond, &cattr);
+
 	return 0;
 }
 
