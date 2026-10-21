@@ -85,3 +85,16 @@ safe_user_strncpy:
 	movb $1, %al
 	ret
 safe_user_strncpy_end:
+
+# bool safe_user_atomic_read32(uint32_t*, const uint32_t*)
+.global safe_user_atomic_read32
+.global safe_user_atomic_read32_end
+.global safe_user_atomic_read32_fault
+safe_user_atomic_read32:
+	xorq %rax, %rax
+	movl (%rsi), %ecx
+	movl %ecx, (%rdi)
+	incq %rax
+safe_user_atomic_read32_fault:
+	ret
+safe_user_atomic_read32_end:

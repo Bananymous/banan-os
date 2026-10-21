@@ -169,6 +169,10 @@ namespace Kernel
 	extern "C" uint8_t safe_user_strncpy_end[];
 	extern "C" uint8_t safe_user_strncpy_fault[];
 
+	extern "C" uint8_t safe_user_atomic_read32[];
+	extern "C" uint8_t safe_user_atomic_read32_end[];
+	extern "C" uint8_t safe_user_atomic_read32_fault[];
+
 	struct safe_user_page_fault
 	{
 		const uint8_t* ip_start;
@@ -185,6 +189,11 @@ namespace Kernel
 			.ip_start = safe_user_strncpy,
 			.ip_end   = safe_user_strncpy_end,
 			.ip_fault = safe_user_strncpy_fault,
+		},
+		{
+			.ip_start = safe_user_atomic_read32,
+			.ip_end   = safe_user_atomic_read32_end,
+			.ip_fault = safe_user_atomic_read32_fault,
 		},
 	};
 

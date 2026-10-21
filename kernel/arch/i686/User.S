@@ -51,3 +51,18 @@ safe_user_strncpy:
 	movl 8(%esp), %esi
 	ret
 safe_user_strncpy_end:
+
+# bool safe_user_atomic_read32(uint32_t*, const uint32_t*)
+.global safe_user_atomic_read32
+.global safe_user_atomic_read32_end
+.global safe_user_atomic_read32_fault
+safe_user_atomic_read32:
+	xorl %eax, %eax
+	movl 8(%esp), %edx
+	movl  (%edx), %ecx
+	movl 4(%esp), %edx
+	movl %ecx, (%edx)
+	incl %eax
+safe_user_atomic_read32_fault:
+	ret
+safe_user_atomic_read32_end:
