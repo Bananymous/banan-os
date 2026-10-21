@@ -4,6 +4,8 @@
 
 #define KMALLOC_FILL_WITH_GARBAGE 0
 
+static constexpr size_t s_big_allocation_threshold = 16 * 1024;
+
 static constexpr size_t s_allocator_chunk_size { 64 };
 static constexpr size_t s_allocator_align      { alignof(max_align_t) };
 
@@ -56,23 +58,34 @@ struct BitmapAllocator
 
 		const size_t page_count = s_allocator_dynamic_size / PAGE_SIZE;
 
-		const vaddr_t vaddr = PageTable::kernel().reserve_free_contiguous_pages(page_count, KERNEL_OFFSET);
+		auto& heap = Heap::get();
+		auto& page_table = PageTable::kernel();
+
+		const vaddr_t vaddr = page_table.reserve_free_contiguous_pages(page_count, KERNEL_OFFSET);
 		if (vaddr == 0)
 			return false;
 
 		for (size_t i = 0; i < page_count; i++)
 		{
-			const paddr_t paddr = Heap::get().take_free_page();
+			const paddr_t paddr = heap.take_free_page();
 			if (paddr == 0)
 			{
 				for (size_t j = 0; j < i; j++)
-					Heap::get().release_page(PageTable::kernel().physical_address_of(vaddr + j * PAGE_SIZE));
-				PageTable::kernel().unmap_range(vaddr, page_count * PAGE_SIZE);
+					heap.release_page(page_table.physical_address_of(vaddr + j * PAGE_SIZE));
+				page_table.unmap_range(vaddr, page_count * PAGE_SIZE);
 				return false;
 			}
 
-			PageTable::kernel().map_page_at(paddr, vaddr + i * PAGE_SIZE, PageTable::ReadWrite | PageTable::Present);
+			page_table.map_page_at(
+				paddr,
+				vaddr + i * PAGE_SIZE,
+				PageTable::ReadWrite | PageTable::Present,
+				PageTable::MemoryType::Normal,
+				false
+			);
 		}
+
+		page_table.invalidate_range(vaddr, page_count, true);
 
 		constexpr size_t bitmap_bytes  = BAN::Math::div_round_up(s_allocator_dynamic_size, s_allocator_chunk_size * 8);
 		constexpr size_t bitmap_chunks = BAN::Math::div_round_up(bitmap_bytes, s_allocator_chunk_size);
@@ -222,6 +235,11 @@ struct BitmapAllocator
 	}
 };
 
+struct BigAllocationHeader
+{
+	alignas(s_allocator_align) size_t page_count;
+};
+
 static uint8_t s_allocator_storage[s_max_allocator_count * sizeof(BitmapAllocator)];
 static BitmapAllocator* s_allocators[s_max_allocator_count] {};
 
@@ -251,6 +269,45 @@ static void kmalloc_dump_info()
 
 void* kmalloc(size_t size)
 {
+	using namespace Kernel;
+
+	if (size + sizeof(BigAllocationHeader) >= s_big_allocation_threshold)
+	{
+		const size_t page_count = (size + sizeof(BigAllocationHeader) + PAGE_SIZE - 1) / PAGE_SIZE;
+
+		auto& heap = Heap::get();
+		auto& page_table = PageTable::kernel();
+
+		const vaddr_t vaddr = page_table.reserve_free_contiguous_pages(page_count, KERNEL_OFFSET);
+		if (vaddr == 0)
+			return nullptr;
+
+		for (size_t i = 0; i < page_count; i++)
+		{
+			const paddr_t paddr = heap.take_free_page();
+			if (paddr == 0)
+			{
+				for (size_t j = 0; j < i; j++)
+					heap.release_page(page_table.physical_address_of(vaddr + j * PAGE_SIZE));
+				page_table.unmap_range(vaddr, page_count * PAGE_SIZE);
+				return nullptr;
+			}
+			page_table.map_page_at(
+				paddr,
+				vaddr + i * PAGE_SIZE,
+				PageTable::Flags::ReadWrite | PageTable::Flags::Present,
+				PageTable::MemoryType::Normal, false
+			);
+		}
+
+		page_table.invalidate_range(vaddr, page_count, true);
+
+		auto* header = reinterpret_cast<BigAllocationHeader*>(vaddr);
+		header->page_count = page_count;
+
+		return header + 1;
+	}
+
 	if (size >= s_allocator_dynamic_size)
 	{
 		dwarnln("cannot allocate {} bytes, only up to {} is supported", size, s_allocator_dynamic_size);
@@ -259,7 +316,7 @@ void* kmalloc(size_t size)
 
 	const size_t needed_chunks = BitmapAllocator::needed_chunks(size);
 
-	Kernel::SpinLockGuard _(s_kmalloc_lock);
+	SpinLockGuard _(s_kmalloc_lock);
 
 	for (size_t i = 0; i < s_max_allocator_count; i++)
 	{
@@ -294,14 +351,25 @@ void* kmalloc(size_t size)
 
 void kfree(void* ptr)
 {
+	using namespace Kernel;
+
 	if (ptr == nullptr)
 		return;
 
-	Kernel::SpinLockGuard _(s_kmalloc_lock);
+	{
+		SpinLockGuard _(s_kmalloc_lock);
+		for (size_t i = 0; i < s_max_allocator_count && s_allocators[i]; i++)
+			if (s_allocators[i]->contains(ptr))
+				return s_allocators[i]->free(ptr);
+	}
 
-	for (size_t i = 0; i < s_max_allocator_count && s_allocators[i]; i++)
-		if (s_allocators[i]->contains(ptr))
-			return s_allocators[i]->free(ptr);
+	const vaddr_t vaddr = reinterpret_cast<vaddr_t>(ptr) - sizeof(BigAllocationHeader);
+	const auto header = *reinterpret_cast<BigAllocationHeader*>(vaddr);
 
-	ASSERT_NOT_REACHED();
+	auto& heap = Heap::get();
+	auto& page_table = PageTable::kernel();
+
+	for (size_t i = 0; i < header.page_count; i++)
+		heap.release_page(page_table.physical_address_of(vaddr + i * PAGE_SIZE));
+	page_table.unmap_range(vaddr, header.page_count * PAGE_SIZE);
 }
