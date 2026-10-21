@@ -449,6 +449,7 @@ int pthread_create(pthread_t* __restrict thread, const pthread_attr_t* __restric
 			.name = {},
 			.errno_ = 0,
 			.libc_owns_stack = false,
+			.has_exited = false,
 			.cancel_type = PTHREAD_CANCEL_DEFERRED,
 			.cancel_state = PTHREAD_CANCEL_ENABLE,
 			.canceled = 0,
@@ -507,10 +508,15 @@ pthread_create_error:
 
 int pthread_detach(pthread_t thread)
 {
-	// FIXME: race if detached thread exits before assigning detachstate
+	// FIXME: race if detaching while the thread exits
+
 	if (syscall(SYS_THREAD_DETACH, thread->id) == -1)
 		return errno;
+
 	thread->attr.detachstate = PTHREAD_CREATE_DETACHED;
+	if (thread->has_exited)
+		free_uthread(thread);
+
 	return 0;
 }
 
@@ -545,6 +551,8 @@ void pthread_exit(void* value_ptr)
 		if (!called)
 			break;
 	}
+
+	uthread->has_exited = true;
 
 	if (uthread->attr.detachstate == PTHREAD_CREATE_DETACHED)
 	{

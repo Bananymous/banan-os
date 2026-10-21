@@ -50,7 +50,8 @@ struct uthread
 	pthread_attr_t attr;
 	char name[16];
 	int errno_;
-	int libc_owns_stack;
+	int libc_owns_stack : 1;
+	int has_exited      : 1;
 	int cancel_type;
 	int cancel_state;
 	volatile int canceled;
