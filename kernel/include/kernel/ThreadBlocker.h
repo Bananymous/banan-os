@@ -15,7 +15,7 @@ namespace Kernel
 		void block_indefinite(BaseMutex*);
 		void block_with_timeout_ns(uint64_t timeout_ns, BaseMutex*);
 		void block_with_wake_time_ns(uint64_t wake_time_ns, BaseMutex*);
-		void unblock();
+		void unblock(uint32_t count = UINT32_MAX);
 
 		void block_with_timeout_ms(uint64_t timeout_ms, BaseMutex* mutex)
 		{

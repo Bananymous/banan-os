@@ -22,13 +22,15 @@ namespace Kernel
 		Processor::scheduler().block_current_thread(this, wake_time_ns, mutex);
 	}
 
-	void ThreadBlocker::unblock()
+	void ThreadBlocker::unblock(uint32_t count)
 	{
 		SpinLockGuard _(m_lock);
 
-		for (auto* node = m_block_chain; node;)
+		for (uint32_t i = 0; i < count && m_block_chain; i++)
 		{
-			auto* next = node->block_chain_next;
+			auto* node = m_block_chain;
+
+			m_block_chain = node->block_chain_next;
 
 			ASSERT(node->blocked);
 			ASSERT(node->blocker == this);
@@ -38,11 +40,10 @@ namespace Kernel
 			node->block_chain_next = nullptr;
 
 			Processor::scheduler().unblock_thread(node->thread);
-
-			node = next;
 		}
 
-		m_block_chain = nullptr;
+		if (m_block_chain != nullptr)
+			m_block_chain->block_chain_prev = nullptr;
 	}
 
 	void ThreadBlocker::add_thread_to_block_queue(SchedulerThreadNode* node)
