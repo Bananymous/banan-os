@@ -23,3 +23,9 @@ pre_configure() {
 	unset PKG_CONFIG_LIBDIR
 	unset PKG_CONFIG_PATH
 }
+
+post_install() {
+	for tool in ar nm ranlib; do
+		ln -sf "$tool" "$DESTDIR/usr/bin/$BANAN_TOOLCHAIN_TRIPLE-$tool" || exit 1
+	done
+}
