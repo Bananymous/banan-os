@@ -27,6 +27,15 @@ namespace Kernel
 	{
 		vaddr_t start;
 		vaddr_t end;
+
+		constexpr bool operator==(const AddressRange& other) const
+		{
+			return start == other.start && end == other.end;
+		}
+		constexpr bool operator!=(const AddressRange& other) const
+		{
+			return start != other.start || end != other.end;
+		}
 	};
 
 }
