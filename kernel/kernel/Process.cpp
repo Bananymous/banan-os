@@ -618,19 +618,39 @@ namespace Kernel
 		if (auto rem = size % PAGE_SIZE)
 			size += PAGE_SIZE - rem;
 
-		vaddr_t vaddr = m_shared_page_vaddr ? m_shared_page_vaddr + PAGE_SIZE : 0x400000;
-		for (size_t i = find_mapped_region(vaddr); i < m_mapped_regions.size(); i++)
-		{
-			const auto& region = m_mapped_regions[i];
-			if (!region->overlaps(vaddr, size))
-				return AddressRange { vaddr, vaddr + size };
+		const bool can_retry = !!m_vma_bump_base;
 
-			vaddr = region->vaddr() + region->size();
-			if (auto rem = vaddr % PAGE_SIZE)
-				vaddr += PAGE_SIZE - rem;
+		if (m_vma_bump_base == 0)
+			m_vma_bump_base = m_shared_page_vaddr + PAGE_SIZE;
+
+		for (size_t i = find_mapped_region(m_vma_bump_base); m_vma_bump_base < USERSPACE_END;)
+		{
+			if (i < m_mapped_regions.size())
+			{
+				if (const auto& region = m_mapped_regions[i]; region->overlaps(m_vma_bump_base, size))
+				{
+					m_vma_bump_base = (region->vaddr() + region->size() + PAGE_SIZE - 1) & PAGE_ADDR_MASK;
+					i++;
+					continue;
+				}
+			}
+
+			// NOTE: there are some things in VM outside of m_mapped_regions (kernel stacks),
+			//       so make sure this is actually free
+			if (!page_table().is_range_free(m_vma_bump_base, size))
+			{
+				m_vma_bump_base += size;
+				continue;
+			}
+
+			return AddressRange { .start = m_vma_bump_base, .end = m_vma_bump_base + size };
 		}
 
-		return BAN::Error::from_errno(ENOMEM);
+		if (!can_retry)
+			return BAN::Error::from_errno(ENOMEM);
+
+		m_vma_bump_base = 0;
+		return find_free_address_range(size);
 	}
 
 	size_t Process::proc_meminfo(off_t offset, BAN::ByteSpan buffer) const
@@ -2848,6 +2868,8 @@ namespace Kernel
 			m_mapped_regions[i]->wait_not_pinned();
 			auto temp = BAN::move(m_mapped_regions[i]);
 			m_mapped_regions.remove(i--);
+
+			m_vma_bump_base = BAN::Math::min(temp->vaddr(), m_vma_bump_base);
 
 			if (temp->is_contained_by(vaddr, len))
 				continue;

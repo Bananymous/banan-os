@@ -333,6 +333,7 @@ namespace Kernel
 
 		mutable RWLock m_memory_region_lock;
 		BAN::Vector<BAN::UniqPtr<MemoryRegion>> m_mapped_regions;
+		vaddr_t m_vma_bump_base { 0 };
 
 		pid_t m_sid;
 		pid_t m_pgrp;
