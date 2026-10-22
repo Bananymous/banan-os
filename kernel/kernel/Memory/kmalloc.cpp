@@ -9,15 +9,15 @@ static constexpr size_t s_big_allocation_threshold = 16 * 1024;
 static constexpr size_t s_allocator_chunk_size { 64 };
 static constexpr size_t s_allocator_align      { alignof(max_align_t) };
 
-static constexpr size_t s_max_allocator_count { 128 };
+static constexpr size_t s_max_allocator_count { 512 };
 
-static constexpr size_t s_allocator_default_size {       128 * 1024 };
-static constexpr size_t s_allocator_dynamic_size { 16 * 1024 * 1024 };
+static constexpr size_t s_allocator_default_size {      128 * 1024 };
+static constexpr size_t s_allocator_dynamic_size { 2 * 1024 * 1024 };
 
 alignas(s_allocator_align) static uint8_t s_default_allocator_memory[s_allocator_default_size] {};
 
-// NOTE: 128 KiB + 127 * 16 MiB ~= 2 GiB
-//       This is should be more than enough for kmalloc :^)
+// NOTE: 128 KiB + 511 * 2 MiB ~= 1 GiB
+//       This is should be more than enough for bitmap allocation :^)
 
 struct BitmapAllocator
 {
