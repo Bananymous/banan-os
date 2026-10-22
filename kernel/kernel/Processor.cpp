@@ -631,9 +631,11 @@ namespace Kernel
 
 		ASSERT(!processor.m_smp_messages_disabled);
 
+		SMPMessage* last_handled = nullptr;
+
 		auto* pending = processor.m_smp_pending.exchange(nullptr);
 		if (pending == nullptr)
-			return;
+			goto handle_tlb_messages;
 
 		// reverse smp message queue from LIFO to FIFO
 		{
@@ -649,8 +651,6 @@ namespace Kernel
 
 			pending = reversed;
 		}
-
-		SMPMessage* last_handled = nullptr;
 
 		// handle messages
 		for (auto* message = pending; message; message = message->next)
@@ -686,6 +686,7 @@ namespace Kernel
 		while (!processor.m_smp_free.compare_exchange(last_handled->next, pending))
 			__builtin_ia32_pause();
 
+	handle_tlb_messages:
 		{
 			processor.lock_tlb_lock();
 			const size_t tlb_entry_count = processor.m_tlb_entry_count;
