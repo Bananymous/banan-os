@@ -33,6 +33,8 @@ namespace Kernel
 		Heap() = default;
 		void initialize_impl();
 
+		void append_region_nolock(paddr_t start, uint64_t bytes);
+
 	private:
 		BAN::Vector<PhysicalRange>	m_physical_ranges;
 		mutable SpinLock			m_lock;

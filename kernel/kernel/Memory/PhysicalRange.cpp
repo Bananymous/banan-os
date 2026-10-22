@@ -1,14 +1,8 @@
-#include <BAN/Assert.h>
-#include <BAN/Math.h>
-#include <BAN/Optional.h>
-
 #include <kernel/Memory/PageTable.h>
 #include <kernel/Memory/PhysicalRange.h>
 
 namespace Kernel
 {
-
-	static constexpr size_t bits_per_page = PAGE_SIZE * 8;
 
 	PhysicalRange::PhysicalRange(paddr_t paddr, uint64_t size)
 		: m_paddr(paddr)
@@ -17,71 +11,58 @@ namespace Kernel
 	{
 		ASSERT(paddr % PAGE_SIZE == 0);
 		ASSERT(size % PAGE_SIZE == 0);
+		ASSERT(m_page_count);
+		ASSERT(m_page_count <= PAGE_SIZE * 8);
 
-		const size_t bitmap_page_count = BAN::Math::div_round_up<size_t>(m_page_count, bits_per_page);
-		for (size_t i = 0; i < bitmap_page_count; i++)
-		{
-			PageTable::with_per_cpu_fast_page(paddr + i * PAGE_SIZE, [](void* addr) {
-				memset(addr, 0, PAGE_SIZE);
-			});
-		}
+		PageTable::with_per_cpu_fast_page(paddr, [](void* addr) {
+			memset(addr, 0, PAGE_SIZE);
+		});
 
-		ASSERT(reserve_contiguous_pages(bitmap_page_count) == m_paddr);
+		const paddr_t reserved = reserve_page();
+		ASSERT(reserved == m_paddr);
 	}
 
 	paddr_t PhysicalRange::reserve_page()
 	{
 		ASSERT(free_pages() > 0);
 
-		const size_t bitmap_page_count = BAN::Math::div_round_up<size_t>(m_page_count, bits_per_page);
+		size_t matched;
 
-		for (size_t i = 0; i < bitmap_page_count; i++)
-		{
-			BAN::Optional<size_t> page_matched_bit;
-
-			const paddr_t current_paddr = m_paddr + i * PAGE_SIZE;
-			PageTable::with_per_cpu_fast_page(current_paddr, [&page_matched_bit](void* addr) {
-				for (size_t j = 0; j < PAGE_SIZE / sizeof(size_t); j++)
-				{
-					auto& current = static_cast<size_t*>(addr)[j];
-					if (current == BAN::numeric_limits<size_t>::max())
-						continue;
-					const int ctz = BAN::Math::ctz(~current);
-					current |= static_cast<size_t>(1) << ctz;
-					page_matched_bit = j * sizeof(size_t) * 8 + ctz;
-					return;
-				}
-			});
-
-			if (page_matched_bit.has_value())
+		PageTable::with_per_cpu_fast_page(m_paddr, [&matched](void* addr) {
+			uint64_t* qwords = static_cast<uint64_t*>(addr);
+			for (size_t i = 0; i < PAGE_SIZE / sizeof(uint64_t); i++)
 			{
-				m_free_pages--;
-
-				const size_t matched_bit = (i * bits_per_page) + page_matched_bit.value();
-				ASSERT(matched_bit < m_page_count);
-				return m_paddr + matched_bit * PAGE_SIZE;
+				if (qwords[i] == UINT64_MAX)
+					continue;
+				const size_t bit = BAN::Math::ctz(~qwords[i]);
+				qwords[i] |= 1ull << bit;
+				matched = i * 64 + bit;
+				return;
 			}
-		}
+			ASSERT_NOT_REACHED();
+		});
 
-		ASSERT_NOT_REACHED();
+		ASSERT(matched < m_page_count);
+
+		m_free_pages--;
+
+		return m_paddr + matched * PAGE_SIZE;
 	}
 
 	void PhysicalRange::release_page(paddr_t paddr)
 	{
 		ASSERT(paddr % PAGE_SIZE == 0);
-		ASSERT(paddr >= m_paddr);
-		ASSERT(paddr <  m_paddr + m_page_count * PAGE_SIZE);
+		ASSERT(paddr != m_paddr);
+		ASSERT(contains(paddr));
 
-		const size_t paddr_index = (paddr - m_paddr) / PAGE_SIZE;
+		const size_t index = (paddr - m_paddr) / PAGE_SIZE;
+		const size_t qword = index / 64;
+		const size_t bit   = index % 64;
 
-		PageTable::with_per_cpu_fast_page(m_paddr + paddr_index / bits_per_page * PAGE_SIZE, [paddr_index] (void* addr) {
-			const size_t bitmap_bit = paddr_index % bits_per_page;
-			const size_t byte       = bitmap_bit / 8;
-			const size_t bit        = bitmap_bit % 8;
-
-			uint8_t& bitmap_byte = static_cast<uint8_t*>(addr)[byte];
-			ASSERT(bitmap_byte & (1u << bit));
-			bitmap_byte &= ~(1u << bit);
+		PageTable::with_per_cpu_fast_page(m_paddr, [qword, bit](void* addr) {
+			uint64_t* qwords = static_cast<uint64_t*>(addr);
+			ASSERT(qwords[qword] & (1ull << bit));
+			qwords[qword] &= ~(1ull << bit);
 		});
 
 		m_free_pages++;
@@ -92,60 +73,51 @@ namespace Kernel
 		ASSERT(pages > 0);
 		ASSERT(pages <= free_pages());
 
-		const auto bitmap_is_set =
-			[this](size_t buffer_bit) -> bool
+		size_t matched = SIZE_MAX;
+
+		PageTable::with_per_cpu_fast_page(m_paddr, [this, &matched, pages](void* addr) {
+			uint64_t* qwords = static_cast<uint64_t*>(addr);
+			for (size_t i = 0; i < m_page_count - pages; i++)
 			{
-				const size_t page_index = buffer_bit / bits_per_page;
-				const size_t bit_index  = buffer_bit % bits_per_page;
-				const size_t byte = bit_index / 8;
-				const size_t bit  = bit_index % 8;
+				bool is_usable = true;
+				for (size_t j = i; j < i + pages && is_usable; j++)
+					is_usable = !(qwords[j / 64] & (1ull << (j % 64)));
+				if (!is_usable)
+					continue;
+				for (size_t j = i; j < i + pages; j++)
+					qwords[j / 64] |= 1ull << (j % 64);
+				matched = i;
+				return;
+			}
+		});
 
-				uint8_t current;
-				PageTable::with_per_cpu_fast_page(m_paddr + page_index * PAGE_SIZE, [&current, byte](void* addr) {
-					current = static_cast<uint8_t*>(addr)[byte];
-				});
+		if (matched == SIZE_MAX)
+			return 0;
 
-				return current & (1u << bit);
-			};
+		m_free_pages -= pages;
 
-		const auto bitmap_set_bit =
-			[this](size_t buffer_bit) -> void
-			{
-				const size_t page_index = buffer_bit / bits_per_page;
-				const size_t bit_index  = buffer_bit % bits_per_page;
-				const size_t byte = bit_index / 8;
-				const size_t bit  = bit_index % 8;
-				PageTable::with_per_cpu_fast_page(m_paddr + page_index * PAGE_SIZE, [byte, bit](void* addr) {
-					uint8_t& current = static_cast<uint8_t*>(addr)[byte];
-					current |= 1u << bit;
-				});
-			};
-
-		// FIXME: optimize this :)
-		for (size_t i = 0; i <= m_page_count - pages; i++)
-		{
-			bool all_unset = true;
-			for (size_t j = 0; j < pages && all_unset; j++)
-				if (bitmap_is_set(i + j))
-					all_unset = false;
-			if (!all_unset)
-				continue;
-			for (size_t j = 0; j < pages; j++)
-				bitmap_set_bit(i + j);
-
-			m_free_pages -= pages;
-			return m_paddr + i * PAGE_SIZE;
-		}
-
-		return 0;
+		return m_paddr + matched * PAGE_SIZE;
 	}
 
 	void PhysicalRange::release_contiguous_pages(paddr_t paddr, size_t pages)
 	{
 		ASSERT(pages > 0);
-		// FIXME: optimize this :)
-		for (size_t i = 0; i < pages; i++)
-			release_page(paddr + i * PAGE_SIZE);
+		ASSERT(paddr != m_paddr);
+		ASSERT(contains(paddr));
+		ASSERT(contains(paddr + (pages - 1) * PAGE_SIZE));
+
+		const size_t index = (paddr - m_paddr) / PAGE_SIZE;
+
+		PageTable::with_per_cpu_fast_page(m_paddr, [index, pages](void* addr) {
+			uint64_t* qwords = static_cast<uint64_t*>(addr);
+			for (size_t i = index; i < index + pages; i++)
+			{
+				ASSERT(qwords[i / 64] & (1ull << (i % 64)));
+				qwords[i / 64] &= ~(1ull << (i % 64));
+			}
+		});
+
+		m_free_pages += pages;
 	}
 
 }

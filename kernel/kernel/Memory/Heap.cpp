@@ -127,24 +127,17 @@ namespace Kernel
 				if (r_start > e_end)
 					break;
 
-				const paddr_t end = BAN::Math::max(e_start, r_start);
-				if (e_start + 2 * PAGE_SIZE <= end)
-					MUST(m_physical_ranges.emplace_back(e_start, end - e_start));
+				append_region_nolock(e_start, BAN::Math::max(e_start, r_start) - e_start);
 
 				e_start = BAN::Math::max(e_start, BAN::Math::min(e_end, r_end));
 			}
 
-			if (e_start + 2 * PAGE_SIZE <= e_end)
-				MUST(m_physical_ranges.emplace_back(e_start, e_end - e_start));
+			append_region_nolock(e_start, e_end - e_start);
 		}
 
 		uint64_t total_kibi_bytes = 0;
-		for (auto& range : m_physical_ranges)
-		{
-			const uint64_t kibi_bytes = range.usable_memory() / 1024;
-			dprintln("RAM {8H}->{8H} ({}.{3} MiB)", range.start(), range.end(), kibi_bytes / 1024, kibi_bytes % 1024);
-			total_kibi_bytes += kibi_bytes;
-		}
+		for (const auto& range : m_physical_ranges)
+			total_kibi_bytes += range.usable_memory() / 1024;
 		dprintln("Total RAM {}.{3} MiB", total_kibi_bytes / 1024, total_kibi_bytes % 1024);
 	}
 
@@ -163,18 +156,24 @@ namespace Kernel
 			if (auto rem = end % PAGE_SIZE)
 				end -= rem;
 
-			const size_t size = end - start;
-			if (size < 2 * PAGE_SIZE)
-				continue;
-
 			SpinLockGuard _(m_lock);
-			MUST(m_physical_ranges.emplace_back(start, size));
-
+			append_region_nolock(start, end - start);
 			kibi_bytes += m_physical_ranges.back().usable_memory() / 1024;
 		}
 
 		if (kibi_bytes)
 			dprintln("Released {}.{3} MiB of RAM from boot modules", kibi_bytes / 1024, kibi_bytes % 1024);
+	}
+
+	void Heap::append_region_nolock(paddr_t start, uint64_t bytes)
+	{
+		while (bytes >= 2 * PAGE_SIZE)
+		{
+			const uint64_t region_bytes = BAN::Math::min(bytes, PhysicalRange::max_bytes);
+			MUST(m_physical_ranges.emplace_back(start, region_bytes));
+			start += region_bytes;
+			bytes -= region_bytes;
+		}
 	}
 
 	paddr_t Heap::take_free_page()

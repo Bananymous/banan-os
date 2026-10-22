@@ -10,6 +10,10 @@ namespace Kernel
 	class PhysicalRange
 	{
 	public:
+		// Each physical range holds at most one page of bitmap
+		static constexpr uint64_t max_bytes = (PAGE_SIZE * 8) * PAGE_SIZE;
+
+	public:
 		PhysicalRange(paddr_t, uint64_t);
 
 		paddr_t reserve_page();
@@ -28,8 +32,8 @@ namespace Kernel
 		size_t free_pages() const { return m_free_pages; }
 
 	private:
-		const paddr_t m_paddr { 0 };
-		const size_t m_page_count { 0 };
+		const paddr_t m_paddr;
+		const size_t m_page_count;
 		size_t m_free_pages { 0 };
 	};
 
