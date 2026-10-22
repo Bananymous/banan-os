@@ -15,9 +15,9 @@ namespace Kernel
 
 	MemoryRegion::~MemoryRegion()
 	{
-		ASSERT(m_pinned_count == 0);
-		if (m_vaddr)
-			m_page_table.unmap_range(m_vaddr, m_size);
+		if (m_vaddr == 0)
+			return;
+		m_page_table.unmap_range(m_vaddr, m_size);
 	}
 
 	BAN::ErrorOr<void> MemoryRegion::initialize(AddressRange address_range)
@@ -85,26 +85,6 @@ namespace Kernel
 		if (!ret.is_error() && ret.value())
 			m_physical_page_count++;
 		return ret;
-	}
-
-	void MemoryRegion::pin()
-	{
-		LockGuard _(m_pinned_mutex);
-		m_pinned_count++;
-	}
-
-	void MemoryRegion::unpin()
-	{
-		LockGuard _(m_pinned_mutex);
-		if (--m_pinned_count == 0)
-			m_pinned_blocker.unblock();
-	}
-
-	void MemoryRegion::wait_not_pinned()
-	{
-		LockGuard _(m_pinned_mutex);
-		while (m_pinned_count)
-			m_pinned_blocker.block_with_timeout_ms(100, &m_pinned_mutex);
 	}
 
 }

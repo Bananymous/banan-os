@@ -198,8 +198,6 @@ namespace Kernel
 		ASSERT(flags() == region.flags());
 		ASSERT(type()  == region.type());
 
-		region.wait_not_pinned();
-
 		ASSERT(region.vaddr() == ((m_vaddr + m_size + PAGE_SIZE - 1) & PAGE_ADDR_MASK));
 
 		const size_t old_pages = m_physical_pages.size();

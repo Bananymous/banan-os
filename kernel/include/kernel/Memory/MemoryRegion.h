@@ -41,10 +41,6 @@ namespace Kernel
 		size_t virtual_page_count() const { return BAN::Math::div_round_up<size_t>(m_size, PAGE_SIZE); }
 		size_t physical_page_count() const { return m_physical_page_count; }
 
-		void pin();
-		void unpin();
-		void wait_not_pinned();
-
 		BAN::ErrorOr<void> mprotect(PageTable::flags_t);
 		virtual BAN::ErrorOr<void> msync(vaddr_t, size_t, int) = 0;
 
@@ -72,10 +68,6 @@ namespace Kernel
 		const int m_status_flags;
 		vaddr_t m_vaddr { 0 };
 		size_t m_physical_page_count { 0 };
-
-		Mutex m_pinned_mutex;
-		BAN::Atomic<size_t> m_pinned_count { 0 };
-		ThreadBlocker m_pinned_blocker;
 	};
 
 }

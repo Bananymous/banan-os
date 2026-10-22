@@ -287,7 +287,17 @@ namespace Kernel
 		BAN::ErrorOr<FileParent> find_parent_file(int fd, const char* path, int flags) const;
 		BAN::ErrorOr<VirtualFileSystem::File> find_relative_parent(int fd, const char* path) const;
 
-		BAN::ErrorOr<void> validate_and_pin_pointer_access(const void*, size_t, bool needs_write, BAN::Vector<MemoryRegion*>&);
+		struct MemoryPinner
+		{
+			MemoryPinner(Process&);
+			~MemoryPinner();
+
+			Process& process;
+			BAN::Vector<AddressRange> ranges;
+		};
+		BAN::ErrorOr<void> validate_and_pin_pointer_access(const void*, size_t, bool needs_write, MemoryPinner&);
+
+		void wait_not_pinned(vaddr_t, size_t);
 
 		uint64_t signal_pending_mask() const
 		{
@@ -334,6 +344,10 @@ namespace Kernel
 		mutable RWLock m_memory_region_lock;
 		BAN::Vector<BAN::UniqPtr<MemoryRegion>> m_mapped_regions;
 		vaddr_t m_vma_bump_base { 0 };
+
+		Mutex m_pinned_range_lock;
+		ThreadBlocker m_pinned_range_blocker;
+		BAN::Vector<AddressRange> m_pinned_ranges;
 
 		pid_t m_sid;
 		pid_t m_pgrp;
