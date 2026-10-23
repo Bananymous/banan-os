@@ -27,25 +27,14 @@ namespace Kernel
 
 	static BAN::ErrorOr<void> fcntl_lock(BAN::RefPtr<Inode> inode, int cmd, struct flock& flock);
 
-	OpenFileDescriptorSet::OpenFileDescriptorSet(const Credentials& credentials)
+	OpenFileDescriptorSet::OpenFileDescriptorSet(const Credentials& credentials, pid_t pid)
 		: m_credentials(credentials)
-	{
-
-	}
+		, m_pid(pid)
+	{ }
 
 	OpenFileDescriptorSet::~OpenFileDescriptorSet()
 	{
 		close_all();
-	}
-
-	OpenFileDescriptorSet& OpenFileDescriptorSet::operator=(OpenFileDescriptorSet&& other)
-	{
-		LockGuard _(m_mutex);
-		for (size_t i = 0; i < m_open_files.size(); i++)
-			m_open_files[i] = BAN::move(other.m_open_files[i]);
-		for (size_t i = 0; i < m_cloexec_files.size(); i++)
-			m_cloexec_files[i] = other.m_cloexec_files[i];
-		return *this;
 	}
 
 	BAN::ErrorOr<void> OpenFileDescriptorSet::clone_from(const OpenFileDescriptorSet& other)
@@ -259,7 +248,7 @@ namespace Kernel
 		{
 			struct flock flock;
 			TRY(read_from_user(reinterpret_cast<void*>(extra), &flock, sizeof(struct flock)));
-			flock.l_pid = Process::current().pid();
+			flock.l_pid = m_pid;
 
 			BAN::RefPtr<Inode> inode;
 
@@ -450,9 +439,10 @@ namespace Kernel
 			remove_cloexec(fd);
 		}
 
-		if (auto& flock = open_file->flock; Thread::current().has_process() && flock.lockers.contains(Process::current().pid()))
+		auto& flock = open_file->flock;
+		if (auto it = flock.lockers.find(m_pid); it != flock.lockers.end())
 		{
-			flock.lockers.remove(Process::current().pid());
+			flock.lockers.remove(it);
 			if (flock.lockers.empty())
 			{
 				flock.locked = false;
@@ -460,16 +450,14 @@ namespace Kernel
 			}
 		}
 
+		LockGuard _(s_fcntl_lock_mutex);
+		if (auto it = s_fcntl_locks.find(open_file->file.inode); it != s_fcntl_locks.end())
 		{
-			LockGuard _(s_fcntl_lock_mutex);
-			if (auto it = s_fcntl_locks.find(open_file->file.inode); it != s_fcntl_locks.end())
-			{
-				auto& flocks = it->value;
-				for (size_t i = 0; i < flocks.size(); i++)
-					if (flocks[i].l_pid == Process::current().pid())
-						flocks.remove(i--);
-				s_fcntl_lock_thread_blocker.unblock();
-			}
+			auto& flocks = it->value;
+			for (size_t i = 0; i < flocks.size(); i++)
+				if (flocks[i].l_pid == m_pid)
+					flocks.remove(i--);
+			s_fcntl_lock_thread_blocker.unblock();
 		}
 
 		return {};
@@ -648,8 +636,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> OpenFileDescriptorSet::flock(int fd, int op)
 	{
-		const auto pid = Process::current().pid();
-
 		LockGuard _(m_mutex);
 
 		for (;;)
@@ -660,7 +646,7 @@ namespace Kernel
 			switch (op & ~LOCK_NB)
 			{
 				case LOCK_UN:
-					flock.lockers.remove(pid);
+					flock.lockers.remove(m_pid);
 					if (flock.lockers.empty())
 					{
 						flock.locked = false;
@@ -670,26 +656,26 @@ namespace Kernel
 				case LOCK_SH:
 					if (!flock.locked)
 					{
-						TRY(flock.lockers.insert(pid));
+						TRY(flock.lockers.insert(m_pid));
 						flock.locked = true;
 						flock.shared = true;
 						return {};
 					}
 					if (flock.shared)
 					{
-						TRY(flock.lockers.insert(pid));
+						TRY(flock.lockers.insert(m_pid));
 						return {};
 					}
 					break;
 				case LOCK_EX:
 					if (!flock.locked)
 					{
-						TRY(flock.lockers.insert(pid));
+						TRY(flock.lockers.insert(m_pid));
 						flock.locked = true;
 						flock.shared = false;
 						return {};
 					}
-					if (flock.lockers.contains(pid))
+					if (flock.lockers.contains(m_pid))
 						return {};
 					break;
 				default:

@@ -4,6 +4,7 @@
 #include <BAN/HashSet.h>
 #include <kernel/FS/Inode.h>
 #include <kernel/FS/VirtualFileSystem.h>
+#include <kernel/ThreadBlocker.h>
 
 #include <limits.h>
 #include <sys/stat.h>
@@ -14,12 +15,11 @@ namespace Kernel
 	class OpenFileDescriptorSet
 	{
 		BAN_NON_COPYABLE(OpenFileDescriptorSet);
+		BAN_NON_MOVABLE(OpenFileDescriptorSet);
 
 	public:
-		OpenFileDescriptorSet(const Credentials&);
+		OpenFileDescriptorSet(const Credentials&, pid_t);
 		~OpenFileDescriptorSet();
-
-		OpenFileDescriptorSet& operator=(OpenFileDescriptorSet&&);
 
 		BAN::ErrorOr<void> clone_from(const OpenFileDescriptorSet&);
 
@@ -41,7 +41,7 @@ namespace Kernel
 
 		BAN::ErrorOr<void> truncate(int fd, off_t length);
 
-		BAN::ErrorOr<void> close(int);
+		BAN::ErrorOr<void> close(int fd);
 		void close_all();
 		void close_cloexec();
 
@@ -123,6 +123,8 @@ namespace Kernel
 
 	private:
 		const Credentials& m_credentials;
+		const pid_t m_pid;
+
 		mutable Mutex m_mutex;
 
 		BAN::Array<BAN::RefPtr<OpenFileDescription>, OPEN_MAX> m_open_files;

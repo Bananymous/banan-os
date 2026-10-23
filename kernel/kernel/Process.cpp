@@ -349,7 +349,7 @@ namespace Kernel
 
 	Process::Process(const Credentials& credentials, pid_t pid, pid_t parent, pid_t sid, pid_t pgrp)
 		: m_credentials(credentials)
-		, m_open_file_descriptors(m_credentials)
+		, m_open_file_descriptors(m_credentials, pid)
 		, m_sid(sid)
 		, m_pgrp(pgrp)
 		, m_pid(pid)
@@ -877,9 +877,6 @@ namespace Kernel
 		for (size_t i = 0; i < m_environ.size(); i++)
 			TRY(environ[i].append(m_environ[i]));
 
-		auto open_file_descriptors = TRY(BAN::UniqPtr<OpenFileDescriptorSet>::create(m_credentials));
-		TRY(open_file_descriptors->clone_from(m_open_file_descriptors));
-
 		BAN::Vector<BAN::UniqPtr<MemoryRegion>> mapped_regions;
 		{
 			RWLockRDGuard _(m_memory_region_lock);
@@ -902,6 +899,8 @@ namespace Kernel
 		});
 		forked->m_page_table = BAN::move(page_table);
 
+		TRY(forked->m_open_file_descriptors.clone_from(m_open_file_descriptors));
+
 		Thread* thread = TRY(Thread::current().clone(forked, sp, ip));
 		BAN::ScopeGuard thread_deleter([thread] { delete thread; });
 
@@ -920,7 +919,6 @@ namespace Kernel
 		forked->m_environ = BAN::move(environ);
 		forked->m_executable = BAN::move(executable);
 		forked->m_shared_page_vaddr = BAN::move(shared_page_vaddr);
-		forked->m_open_file_descriptors = BAN::move(*open_file_descriptors);
 		forked->m_mapped_regions = BAN::move(mapped_regions);
 		forked->m_has_called_exec = false;
 		memcpy(forked->m_signal_handlers, m_signal_handlers, sizeof(m_signal_handlers));
