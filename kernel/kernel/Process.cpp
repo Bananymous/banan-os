@@ -1098,6 +1098,11 @@ namespace Kernel
 #endif
 			}
 
+			// After this point nothing can fail
+
+			// NOTE: closing files may acquire locks (e.g. pipe),
+			//       so it has to be done before disabling interrupts
+			m_open_file_descriptors.close_cloexec();
 
 			RWLockWRGuard wr_guard(m_memory_region_lock);
 
@@ -1108,8 +1113,6 @@ namespace Kernel
 
 			ASSERT(Processor::get_interrupt_state() == InterruptState::Enabled);
 			Processor::set_interrupt_state(InterruptState::Disabled);
-
-			// after this point, everything is initialized and nothing can fail!
 
 			ASSERT(m_threads.size() == 1);
 			ASSERT(&Thread::current() == m_threads.front());
@@ -1137,7 +1140,6 @@ namespace Kernel
 			if (executable_inode->mode().mode & +Inode::Mode::ISGID)
 				m_credentials.set_egid(executable_inode->gid());
 
-			m_open_file_descriptors.close_cloexec();
 			m_mapped_regions = BAN::move(new_mapped_regions);
 			m_page_table = BAN::move(new_page_table);
 
