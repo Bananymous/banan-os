@@ -687,28 +687,28 @@ namespace Kernel
 			__builtin_ia32_pause();
 
 	handle_tlb_messages:
-		{
-			processor.lock_tlb_lock();
-			const size_t tlb_entry_count = processor.m_tlb_entry_count;
-			const auto tlb_entries = processor.m_tlb_entries;
-			const bool tlb_global = processor.m_tlb_global;
-			processor.m_tlb_entry_count = 0;
-			processor.m_tlb_global = false;
-			processor.unlock_tlb_lock();
+		processor.lock_tlb_lock();
+		const size_t tlb_entry_count = processor.m_tlb_entry_count;
+		if (tlb_entry_count == 0)
+			return processor.unlock_tlb_lock();
+		const auto tlb_entries = processor.m_tlb_entries;
+		const bool tlb_global = processor.m_tlb_global;
+		processor.m_tlb_entry_count = 0;
+		processor.m_tlb_global = false;
+		processor.unlock_tlb_lock();
 
-			auto& page_table = PageTable::current();
+		auto& page_table = PageTable::current();
 
-			size_t pages = 0;
-			for (size_t i = 0; i < tlb_entry_count; i++)
-				if (tlb_entries[i].page_table == nullptr || tlb_entries[i].page_table == &page_table)
-					pages += tlb_entries[i].page_count;
+		size_t pages = 0;
+		for (size_t i = 0; i < tlb_entry_count; i++)
+			if (tlb_entries[i].page_table == nullptr || tlb_entries[i].page_table == &page_table)
+				pages += tlb_entries[i].page_count;
 
-			if (pages >= PageTable::full_tlb_flush_threshold || tlb_entry_count >= processor.m_tlb_entries.size())
-				page_table.invalidate_full_address_space(tlb_global);
-			else for (size_t i = 0; i < tlb_entry_count; i++)
-				if (tlb_entries[i].page_table == nullptr || tlb_entries[i].page_table == &page_table)
-					page_table.invalidate_range(tlb_entries[i].vaddr, tlb_entries[i].page_count, false);
-		}
+		if (pages >= PageTable::full_tlb_flush_threshold || tlb_entry_count >= processor.m_tlb_entries.size())
+			page_table.invalidate_full_address_space(tlb_global);
+		else for (size_t i = 0; i < tlb_entry_count; i++)
+			if (tlb_entries[i].page_table == nullptr || tlb_entries[i].page_table == &page_table)
+				page_table.invalidate_range(tlb_entries[i].vaddr, tlb_entries[i].page_count, false);
 	}
 
 	bool Processor::send_smp_message(ProcessorID processor_id, const SMPMessage& message, bool send_ipi)
