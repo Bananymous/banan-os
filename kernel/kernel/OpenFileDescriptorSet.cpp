@@ -50,7 +50,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> OpenFileDescriptorSet::clone_from(const OpenFileDescriptorSet& other)
 	{
-		LockGuard _(m_mutex);
+		LockGuard _0(m_mutex);
+		LockGuard _1(other.m_mutex);
 
 		close_all();
 
