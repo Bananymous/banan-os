@@ -61,17 +61,20 @@ namespace Kernel
 
 			physical_page = new PhysicalPage(paddr);
 			if (physical_page == nullptr)
+			{
+				Heap::get().release_page(paddr);
 				return BAN::Error::from_errno(ENOMEM);
+			}
 
-			m_page_table.map_page_at(paddr, vaddr, m_flags);
 			PageTable::with_per_cpu_fast_page(paddr, [](void* addr) {
 				memset(addr, 0x00, PAGE_SIZE);
 			});
+			m_page_table.map_page_at(paddr, vaddr, m_flags);
 
 			return true;
 		}
 
-		if (auto is_only_ref = (physical_page->ref_count == 1); is_only_ref || !wants_write)
+		if (const bool is_only_ref = (physical_page->ref_count == 1); is_only_ref || !wants_write)
 		{
 			auto flags = m_flags;
 			if (!is_only_ref)
@@ -88,14 +91,18 @@ namespace Kernel
 
 		auto* new_physical_page = new PhysicalPage(paddr);
 		if (new_physical_page == nullptr)
+		{
+			Heap::get().release_page(paddr);
 			return BAN::Error::from_errno(ENOMEM);
+		}
 
-		m_page_table.map_page_at(paddr, vaddr, m_flags);
-
-		ASSERT(&m_page_table == &PageTable::current());
-		PageTable::with_per_cpu_fast_page(physical_page->paddr, [vaddr](void* addr) {
-			memcpy(reinterpret_cast<void*>(vaddr), addr, PAGE_SIZE);
+		// NOTE: This is kinda ugly but I don't have support for two per cpu fast pages
+		PageTable::with_fast_page(physical_page->paddr, [paddr] {
+			PageTable::with_per_cpu_fast_page(paddr, [](void* addr) {
+				memcpy(addr, PageTable::fast_page_as_ptr(), PAGE_SIZE);
+			});
 		});
+		m_page_table.map_page_at(paddr, vaddr, m_flags);
 
 		if (--physical_page->ref_count == 0)
 			delete physical_page;
