@@ -103,6 +103,9 @@ void Terminal::start_shell()
 		close(pts_slave);
 		close(pts_master);
 
+		setenv("TERM",      "ansi-color", 1);
+		setenv("COLORTERM", "truecolor",  1);
+
 		const char* shell = []() -> const char* {
 			const auto* pwd = getpwuid(getuid());
 			if (pwd && pwd->pw_shell)
