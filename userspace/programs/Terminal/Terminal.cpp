@@ -83,6 +83,16 @@ void Terminal::start_shell()
 			exit(1);
 		}
 
+		termios termios;
+		if (tcgetattr(pts_slave, &termios) == -1)
+			dwarnln("tcgetattr: {}", strerror(errno));
+		else
+		{
+			termios.c_oflag |= OPOST | ONLCR;
+			if (tcsetattr(pts_slave, TCSANOW, &termios) == -1)
+				dwarnln("tcsetattr: {}", strerror(errno));
+		}
+
 		if (dup2(pts_slave, STDIN_FILENO) == -1 || dup2(pts_slave, STDOUT_FILENO) == -1 || dup2(pts_slave, STDERR_FILENO) == -1)
 		{
 			dwarnln("dup2: {}", strerror(errno));
@@ -1095,8 +1105,9 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 			m_state = State::ESC;
 			break;
 		case '\n':
-			m_cursor.x = 0;
 			m_cursor.y++;
+			if (m_cursor.y >= rows())
+				should_invalidate = scroll(m_cursor.y - rows() + 1);
 			break;
 		case '\r':
 			m_cursor.x = 0;
@@ -1152,9 +1163,6 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 			break;
 		}
 	}
-
-	if (m_cursor.y >= rows())
-		should_invalidate = scroll(m_cursor.y - rows() + 1);
 
 	return should_invalidate;
 }
