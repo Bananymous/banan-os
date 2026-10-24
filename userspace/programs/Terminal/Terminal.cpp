@@ -807,7 +807,7 @@ Rectangle Terminal::handle_csi(char ch)
 			const uint32_t e_col = (m_csi_info.fields[0] == 1) ? m_cursor.x : cols() - 1;
 			for (size_t i = s_col; i <= e_col; i++)
 				m_cells[m_cursor.y * cols() + i] = {
-					.codepoint = ' ',
+					.codepoint = 0,
 					.fg_color = fg_color,
 					.bg_color = bg_color,
 					.bold = m_is_bold,
