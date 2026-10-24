@@ -32,4 +32,15 @@ post_install() {
 
 	mkdir -p "$DESTDIR/etc/profile.d"
 	echo 'export NCURSES_NO_UTF8_ACS=1' > "$DESTDIR/etc/profile.d/ncurses.sh"
+
+	cat > ansi-color.ti << EOF
+ansi-color|ANSI terminal with 24-bit true color,
+        use=ansi,
+        colors#256, pairs#65536, Tc,
+        setaf=\E[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m,
+        setab=\E[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m,
+        setrgbf=\E[38\:2\:\:%p1%d\:%p2%d\:%p3%dm,
+        setrgbb=\E[48\:2\:\:%p1%d\:%p2%d\:%p3%dm,
+EOF
+	tic -x -o "$DESTDIR/usr/share/terminfo" ansi-color.ti || exit 1
 }
