@@ -7,6 +7,7 @@
 
 #include <ctype.h>
 #include <fcntl.h>
+#include <pwd.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <sys/select.h>
@@ -102,7 +103,14 @@ void Terminal::start_shell()
 		close(pts_slave);
 		close(pts_master);
 
-		execl("/bin/Shell", "Shell", NULL);
+		const char* shell = []() -> const char* {
+			const auto* pwd = getpwuid(getuid());
+			if (pwd && pwd->pw_shell)
+				return pwd->pw_shell;
+			return "/bin/sh";
+		}();
+
+		execl(shell, shell, NULL);
 		exit(1);
 	}
 
