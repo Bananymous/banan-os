@@ -14,6 +14,10 @@ asm_syscall_handler:
 	movl %esp, %ebp
 	andl $-16, %esp
 
+	# handle fork
+	cmpl $8, %eax
+	je .Lasm_syscall_handler_fork
+
 	# push arguments
 	subl $8, %esp
 	pushl %edi
@@ -33,6 +37,7 @@ asm_syscall_handler:
 
 	call cpp_syscall_handler
 
+ .Lasm_syscall_handler_done:
 	movl %ebp, %esp
 
 	# restore userspace segments
@@ -54,8 +59,7 @@ asm_syscall_handler:
 
 	iret
 
-.global sys_fork_trampoline
-sys_fork_trampoline:
+ .Lasm_syscall_handler_fork:
 	pushl %ebp
 	pushl %ebx
 	pushl %esi
@@ -63,19 +67,21 @@ sys_fork_trampoline:
 
 	call read_ip
 	testl %eax, %eax
-	jz .Lsys_fork_trampoline_done
+	jz .Lasm_syscall_handler_fork_child
 
 	movl %esp, %ebx
 
 	subl $8, %esp
 	pushl %eax
 	pushl %ebx
-	call sys_fork
-	addl $16, %esp
+	call cpp_fork_handler
 
- .Lsys_fork_trampoline_done:
+	addl $32, %esp
+	jmp .Lasm_syscall_handler_done
+
+ .Lasm_syscall_handler_fork_child:
 	popl %edi
-	popl %esi
+	popl %ebx
 	popl %ebx
 	popl %ebp
-	ret
+	jmp .Lasm_syscall_handler_done

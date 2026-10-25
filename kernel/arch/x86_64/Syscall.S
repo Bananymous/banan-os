@@ -12,9 +12,13 @@ asm_syscall_handler:
 	pushq %rcx
 	subq $8, %rsp
 
+	cmpq $8, %rdi
+	je .Lasm_syscall_handler_fork
+
 	movq %r10, %rcx
 	call cpp_syscall_handler
 
+ .Lasm_syscall_handler_done:
 	movq  8(%rsp), %rcx
 	movq 24(%rsp), %r11
 	movq 32(%rsp), %rsp
@@ -22,8 +26,7 @@ asm_syscall_handler:
 	swapgs
 	sysretq
 
-.global sys_fork_trampoline
-sys_fork_trampoline:
+ .Lasm_syscall_handler_fork:
 	pushq %rbx
 	pushq %rbp
 	pushq %r12
@@ -33,17 +36,20 @@ sys_fork_trampoline:
 
 	call read_ip
 	testq %rax, %rax
-	jz .Lsys_fork_trampoline_done
+	jz .Lasm_syscall_handler_fork_child
 
 	movq %rax, %rsi
 	movq %rsp, %rdi
-	call sys_fork
+	call cpp_fork_handler
 
- .Lsys_fork_trampoline_done:
+	addq $48, %rsp
+	jmp .Lasm_syscall_handler_done
+
+ .Lasm_syscall_handler_fork_child:
 	popq %r15
 	popq %r14
 	popq %r13
 	popq %r12
 	popq %rbp
 	popq %rbx
-	ret
+	jmp .Lasm_syscall_handler_done

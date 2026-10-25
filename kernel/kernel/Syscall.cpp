@@ -15,15 +15,25 @@
 namespace Kernel
 {
 
-	extern "C" long sys_fork(uintptr_t sp, uintptr_t ip)
+	extern "C" long cpp_fork_handler(uintptr_t sp, uintptr_t ip)
 	{
-		auto ret = Process::current().sys_fork(sp, ip);
+		// hard coded in Syscall.S
+		static_assert(SYS_FORK == 8);
+
+		Thread::current().set_is_in_syscall(true);
+		Processor::set_interrupt_state(InterruptState::Enabled);
+		Process::current().wait_while_stopped();
+
+		const auto ret = Process::current().sys_fork(sp, ip);
+
+		Process::current().wait_while_stopped();
+		Processor::set_interrupt_state(InterruptState::Disabled);
+		Thread::current().set_is_in_syscall(false);
+
 		if (ret.is_error())
 			return -ret.error().get_error_code();
 		return ret.value();
 	}
-
-	extern "C" long sys_fork_trampoline();
 
 	using SyscallHandler = BAN::ErrorOr<long> (Process::*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 
@@ -61,10 +71,10 @@ namespace Kernel
 		const uint64_t start_ns = SystemTimer::get().ns_since_boot();
 #endif
 
+		ASSERT(syscall != SYS_FORK);
+
 		if (syscall < 0 || syscall >= __SYSCALL_COUNT)
 			dwarnln("No syscall {}", syscall);
-		else if (syscall == SYS_FORK)
-			ret = sys_fork_trampoline();
 		else
 #pragma GCC diagnostic push
 #pragma GCC diagnostic warning "-Wmaybe-uninitialized"
