@@ -290,7 +290,6 @@ namespace Kernel
 
 	BAN::ErrorOr<PageTable*> PageTable::create_userspace()
 	{
-		SpinLockGuard _(s_kernel->m_lock);
 		PageTable* page_table = new PageTable;
 		if (page_table == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
