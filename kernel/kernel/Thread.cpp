@@ -31,7 +31,7 @@ namespace Kernel
 		*(uintptr_t*)rsp = (uintptr_t)value;
 	}
 
-	static pid_t s_next_tid = 1;
+	static BAN::Atomic<pid_t> s_next_tid = 1;
 
 	bool Thread::is_stopping_signal(int signal)
 	{
