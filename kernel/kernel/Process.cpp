@@ -1280,64 +1280,83 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_setitimer(int which, const itimerval* value, itimerval* ovalue)
+	BAN::ErrorOr<long> Process::sys_setitimer(int which, const itimerval* user_value, itimerval* user_ovalue)
 	{
 		switch (which)
 		{
-			case ITIMER_PROF:
 			case ITIMER_REAL:
-			case ITIMER_VIRTUAL:
 				break;
+			case ITIMER_PROF:
+			case ITIMER_VIRTUAL:
+				dprintln("unsupported itimer {}", (which == ITIMER_PROF) ? "PROF" : "VIRTUAL");
+				return BAN::Error::from_errno(ENOTSUP);
 			default:
 				return BAN::Error::from_errno(EINVAL);
 		}
 
-		MemoryPinner pinner(*this);
-		TRY(validate_and_pin_pointer_access(value, sizeof(itimerval), false, pinner));
-		if (ovalue != nullptr)
-			TRY(validate_and_pin_pointer_access(ovalue, sizeof(itimerval), true, pinner));
+		itimerval value;
+		if (user_value)
+		{
+			TRY(read_from_user(user_value, &value, sizeof(itimerval)));
+			if (value.it_value.   tv_sec < 0 || value.it_value.   tv_usec >= 1'000'000)
+				return BAN::Error::from_errno(EINVAL);
+			if (value.it_interval.tv_sec < 0 || value.it_interval.tv_usec >= 1'000'000)
+				return BAN::Error::from_errno(EINVAL);
+		}
+
+		itimerval ovalue {};
 
 		{
 			SpinLockGuard _(s_process_lock);
 
 			const uint64_t current_ns = SystemTimer::get().ns_since_boot();
 
-			if (m_alarm_wake_time_ns)
-			{
-				for (auto it = s_alarm_processes.begin(); it != s_alarm_processes.end(); it++)
-				{
-					if (*it != this)
-						continue;
-					s_alarm_processes.remove(it);
-					break;
-				}
-			}
-
-			if (m_alarm_wake_time_ns && ovalue)
+			if (m_alarm_wake_time_ns && user_ovalue)
 			{
 				const uint64_t interval_us = m_alarm_interval_ns / 1000;
-				ovalue->it_interval = {
+				ovalue.it_interval = {
 					.tv_sec = static_cast<time_t>(interval_us / 1'000'000),
 					.tv_usec = static_cast<suseconds_t>(interval_us % 1'000'000),
 				};
 
 				const uint64_t remaining_us = current_ns < m_alarm_wake_time_ns ? (current_ns - m_alarm_wake_time_ns) / 1000 : 1;
-				ovalue->it_value = {
+				ovalue.it_value = {
 					.tv_sec = static_cast<time_t>(remaining_us / 1'000'000),
 					.tv_usec = static_cast<suseconds_t>(remaining_us % 1'000'000),
 				};
-
-				m_alarm_interval_ns = 0;
-				m_alarm_wake_time_ns = 0;
 			}
 
-			if (value)
+			if (user_value)
 			{
-				const uint64_t value_us = value->it_value.tv_sec * 1'000'000 + value->it_value.tv_usec;
-				const uint64_t interval_us = value->it_interval.tv_sec * 1'000'000 + value->it_interval.tv_usec;
-				if (value_us)
+				if (m_alarm_wake_time_ns)
 				{
-					const uint64_t wake_time_ns = current_ns + value_us * 1000;
+					for (auto it = s_alarm_processes.begin(); it != s_alarm_processes.end(); it++)
+					{
+						if (*it != this)
+							continue;
+						s_alarm_processes.remove(it);
+						break;
+					}
+					m_alarm_wake_time_ns = 0;
+					m_alarm_interval_ns = 0;
+				}
+
+				if (value.it_value.tv_sec || value.it_value.tv_usec)
+				{
+					const auto timeval_to_ns = [](const timeval& tv, uint64_t offset) -> uint64_t {
+						if (BAN::Math::will_multiplication_overflow<uint64_t>(tv.tv_sec, 1'000'000'000))
+							return BAN::numeric_limits<uint64_t>::max();
+						const uint64_t ns_sec = tv.tv_sec * 1'000'000'000ull;
+						const uint64_t ns_usec = tv.tv_usec * 1'000;
+						if (BAN::Math::will_addition_overflow<uint64_t>(ns_sec, ns_usec))
+							return BAN::numeric_limits<uint64_t>::max();
+						if (BAN::Math::will_addition_overflow<uint64_t>(ns_sec + ns_usec, offset))
+							return BAN::numeric_limits<uint64_t>::max();
+						return ns_sec + ns_usec + offset;
+					};
+
+					const uint64_t wake_time_ns = timeval_to_ns(value.it_value, current_ns);
+					const uint64_t interval_ns  = timeval_to_ns(value.it_interval, 0);
 
 					auto it = s_alarm_processes.begin();
 					while (it != s_alarm_processes.end() && (*it)->m_alarm_wake_time_ns < wake_time_ns)
@@ -1345,10 +1364,13 @@ namespace Kernel
 					TRY(s_alarm_processes.insert(it, this));
 
 					m_alarm_wake_time_ns = wake_time_ns;
-					m_alarm_interval_ns = interval_us * 1000;
+					m_alarm_interval_ns = interval_ns;
 				}
 			}
 		}
+
+		if (user_ovalue)
+			TRY(write_to_user(user_ovalue, &ovalue, sizeof(itimerval)));
 
 		return 0;
 	}
