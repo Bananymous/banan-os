@@ -532,9 +532,6 @@ namespace Kernel
 		ASSERT(!thread->m_scheduler_node.blocked);
 		m_run_list.push(&thread->m_scheduler_node);
 
-		if (thread->is_userspace() && thread->has_process())
-			thread->update_processor_index_address();
-
 		m_thread_count++;
 	}
 

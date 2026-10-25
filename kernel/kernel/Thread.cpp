@@ -297,13 +297,6 @@ namespace Kernel
 		m_cpu_time_start_ns = current_ns;
 	}
 
-	void Thread::update_processor_index_address()
-	{
-		if (!is_userspace() || !has_process())
-			return;
-		Processor::gdt().set_cpu_index(Processor::current_index());
-	}
-
 	BAN::ErrorOr<Thread*> Thread::clone(Process* new_process, uintptr_t sp, uintptr_t ip)
 	{
 		ASSERT(m_is_userspace);

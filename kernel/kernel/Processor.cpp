@@ -425,14 +425,14 @@ namespace Kernel
 	{
 		initialize_smp();
 
+		auto& current = s_processors[current_id().as_u32()];
+
 		// wait until bsp is ready
 		if (current_is_bsp())
 		{
 			initialize_shared_page();
 
-			s_processor_count = 1;
-			s_processor_ids[0] = current_id();
-			s_processors[current_id().as_u32()].m_index = 0;
+			current.m_index = s_processor_count++;
 
 			// single processor system
 			if (s_processors_created == 1)
@@ -455,15 +455,14 @@ namespace Kernel
 			// wait until bsp is ready, it shall get index 0
 			while (s_processor_count == 0)
 				__builtin_ia32_pause();
-
-			const auto index = s_processor_count++;
-			ASSERT(s_processor_ids[index] == PROCESSOR_NONE);
-			s_processor_ids[index] = current_id();
-			s_processors[current_id().as_u32()].m_index = index;
+			current.m_index = s_processor_count++;
 
 			uint32_t expected = static_cast<uint32_t>(-1);
 			s_first_ap_ready_ms.compare_exchange(expected, SystemTimer::get().ms_since_boot());
 		}
+
+		s_processor_ids[current.m_index] = current.m_id;
+		current.gdt().set_cpu_index(current.m_index);
 
 		// wait until all processors are initialized
 		{

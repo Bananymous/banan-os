@@ -132,8 +132,6 @@ namespace Kernel
 		void set_is_in_syscall(bool is_in_syscall);
 		bool is_in_syscall() const { return m_is_in_syscall; }
 
-		void update_processor_index_address();
-
 		void set_fsbase(vaddr_t base) { m_fsbase = base; }
 		vaddr_t get_fsbase() const { return m_fsbase; }
 		void set_gsbase(vaddr_t base) { m_gsbase = base; }

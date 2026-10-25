@@ -1144,7 +1144,6 @@ namespace Kernel
 			m_page_table = BAN::move(new_page_table);
 
 			m_shared_page_vaddr = shared_page_vaddr;
-			m_threads.front()->update_processor_index_address();
 
 			execfd_guard.disable();
 
