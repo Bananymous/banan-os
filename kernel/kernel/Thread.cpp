@@ -311,8 +311,8 @@ namespace Kernel
 
 		thread->m_kernel_stack = TRY(VirtualRange::create_to_vaddr_range(
 			new_process->page_table(),
-			{ userspace_stack_base, USERSPACE_END },
-			kernel_stack_size,
+			{ m_kernel_stack->vaddr() - PAGE_SIZE, m_kernel_stack->vaddr() + m_kernel_stack->size() + 2 * PAGE_SIZE },
+			m_kernel_stack->size(),
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
 			true
 		));
