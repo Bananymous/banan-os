@@ -3526,14 +3526,11 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_thread_create(void (*entry)(void*), void* arg, void* stack_base, size_t stack_size)
 	{
 		const vaddr_t stack_vaddr = reinterpret_cast<vaddr_t>(stack_base);
-		if (stack_vaddr % PAGE_SIZE || stack_size % PAGE_SIZE)
+		if (stack_vaddr % PAGE_SIZE || stack_size == 0 || stack_size % PAGE_SIZE)
 			return BAN::Error::from_errno(EINVAL);
 
-		MemoryPinner pinner(*this);
-		TRY(validate_and_pin_pointer_access(stack_base, stack_size, true, pinner));
-
 		const vaddr_t initial_stack_pointer = stack_vaddr + stack_size - sizeof(void*);
-		*reinterpret_cast<void**>(initial_stack_pointer) = arg;
+		TRY(write_to_user(reinterpret_cast<void*>(initial_stack_pointer), &arg, sizeof(void*)));
 
 		auto* thread = TRY(Thread::create_userspace(
 			this,
@@ -3547,7 +3544,12 @@ namespace Kernel
 
 		LockGuard _(m_process_lock);
 
-		TRY(m_threads.push_back(thread));
+		if (auto ret = m_threads.push_back(thread); ret.is_error())
+		{
+			delete thread;
+			return ret.release_error();
+		}
+
 		Processor::scheduler().add_thread(thread);
 
 		return thread->tid();
