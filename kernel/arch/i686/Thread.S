@@ -1,9 +1,3 @@
-# uint32_t read_ip()
-.global read_ip
-read_ip:
-	popl %eax
-	jmp *%eax
-
 # void start_kernel_thread()
 .global start_kernel_thread
 start_kernel_thread:

@@ -1,3 +1,7 @@
+read_eip:
+	popl %eax
+	jmp *%eax
+
 // arguments in EAX, EBX, ECX, EDX, ESI, EDI
 .global asm_syscall_handler
 asm_syscall_handler:
@@ -65,7 +69,7 @@ asm_syscall_handler:
 	pushl %esi
 	pushl %edi
 
-	call read_ip
+	call read_eip
 	testl %eax, %eax
 	jz .Lasm_syscall_handler_fork_child
 

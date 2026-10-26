@@ -2,6 +2,8 @@
 
 #include <kernel/Arch.h>
 
+#include <stdint.h>
+
 #if ARCH(x86_64)
 	#define KERNEL_OFFSET 0xFFFFFFFF80000000
 	#define USERSPACE_END 0x800000000000

@@ -1,3 +1,7 @@
+read_rip:
+	popq %rax
+	jmp *%rax
+
 .global asm_syscall_handler
 asm_syscall_handler:
 	swapgs
@@ -34,7 +38,7 @@ asm_syscall_handler:
 	pushq %r14
 	pushq %r15
 
-	call read_ip
+	call read_rip
 	testq %rax, %rax
 	jz .Lasm_syscall_handler_fork_child
 

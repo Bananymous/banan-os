@@ -1,9 +1,3 @@
-# uint64_t read_ip()
-.global read_ip
-read_ip:
-	popq %rax
-	jmp *%rax
-
 # void start_kernel_thread()
 .global start_kernel_thread
 start_kernel_thread:
