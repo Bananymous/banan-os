@@ -625,8 +625,7 @@ namespace Kernel
 	{
 		CriticalScope _;
 
-		auto processor_id = current_id();
-		auto& processor = s_processors[processor_id.m_id];
+		auto& processor = s_processors[current_id().as_u32()];
 
 		ASSERT(!processor.m_smp_messages_disabled);
 
@@ -712,12 +711,16 @@ namespace Kernel
 
 	bool Processor::send_smp_message(ProcessorID processor_id, const SMPMessage& message, bool send_ipi)
 	{
+		ASSERT(processor_id != current_id());
+
 		CriticalScope _;
 
-		auto& processor = s_processors[processor_id.m_id];
+		auto& processor = s_processors[processor_id.as_u32()];
 
 		if (message.type == SMPMessage::Type::FlushTLB)
 		{
+			ASSERT(!send_ipi);
+
 			processor.lock_tlb_lock();
 
 			const bool is_first_entry = (processor.m_tlb_entry_count == 0);
@@ -769,21 +772,16 @@ namespace Kernel
 		*storage = message;
 
 		// push message to pending queue
-		storage->next = processor.m_smp_pending;
-		while (!processor.m_smp_pending.compare_exchange(storage->next, storage))
+		auto* old_pending = processor.m_smp_pending.load();
+		do {
+			storage->next = old_pending;
 			__builtin_ia32_pause();
+		} while (!processor.m_smp_pending.compare_exchange(old_pending, storage));
 
-		const bool needs_ipi = (storage->next == nullptr);
-
-		if (send_ipi)
-		{
-			if (processor_id == current_id())
-				handle_smp_messages();
-			else if (needs_ipi)
-				InterruptController::get().send_ipi(processor_id);
-		}
-
-		return needs_ipi;
+		const bool was_first = (old_pending == nullptr);
+		if (was_first && send_ipi)
+			InterruptController::get().send_ipi(processor_id);
+		return was_first;
 	}
 
 	void Processor::broadcast_smp_message(const SMPMessage& message)
