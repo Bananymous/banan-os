@@ -7,6 +7,7 @@ set(LIBC_SOURCES
 	dynamic-loader.cpp
 	endian.cpp
 	environ.cpp
+	execinfo.cpp
 	fcntl.cpp
 	fenv.cpp
 	fnmatch.cpp
