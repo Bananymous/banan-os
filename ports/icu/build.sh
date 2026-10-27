@@ -6,7 +6,6 @@ DOWNLOAD_URL="https://github.com/unicode-org/icu/releases/download/release-$VERS
 TAR_CONTENT='icu'
 CONFIG_SUB=('source/config.sub')
 CONFIGURE_OPTIONS=(
-	"--with-cross-build=$BANAN_PORT_DIR/icu/icu-$VERSION-$BANAN_ARCH/source/build-host"
 	'--disable-tests'
 	'--disable-samples'
 )
@@ -16,6 +15,7 @@ pre_configure() {
 
 	mkdir -p source/build-host || exit 1
 	pushd source/build-host || exit 1
+	CONFIGURE_OPTIONS+=("--with-cross-build=$(realpath .)")
 	../configure --disable-tests --disable-samples || exit 1
 	make -j$(proc) || exit 1
 	popd >/dev/null || exit 1
