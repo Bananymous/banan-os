@@ -11,7 +11,7 @@ namespace Kernel
 	{
 		~SharedFileData();
 
-		void sync_no_lock(size_t page_index);
+		BAN::ErrorOr<void> sync_no_lock(size_t page_index);
 
 		RWLock rw_lock;
 

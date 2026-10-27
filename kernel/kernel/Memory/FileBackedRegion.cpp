@@ -86,15 +86,16 @@ namespace Kernel
 		{
 			if (pages[i] == 0)
 				continue;
-			sync_no_lock(i);
+			if (auto ret = sync_no_lock(i); ret.is_error())
+				dwarnln("failed to sync mmapped file backing: {}", ret.error());
 			Heap::get().release_page(pages[i]);
 		}
 	}
 
-	void SharedFileData::sync_no_lock(size_t page_index)
+	BAN::ErrorOr<void> SharedFileData::sync_no_lock(size_t page_index)
 	{
 		if (pages[page_index] == 0 || BAN::atomic_load(writers[page_index]) > 0)
-			return;
+			return {};
 
 		uint8_t page_buffer[PAGE_SIZE];
 		PageTable::with_per_cpu_fast_page(pages[page_index], [&](void* addr) {
@@ -102,8 +103,9 @@ namespace Kernel
 		});
 
 		const size_t write_size = BAN::Math::min<size_t>(PAGE_SIZE, inode->size() - page_index * PAGE_SIZE);
-		if (auto ret = inode->write(page_index * PAGE_SIZE, BAN::ConstByteSpan::from(page_buffer).slice(0, write_size)); ret.is_error())
-			dwarnln("{}", ret.error());
+		TRY(inode->write(page_index * PAGE_SIZE, BAN::ConstByteSpan::from(page_buffer).slice(0, write_size)));
+
+		return {};
 	}
 
 	BAN::ErrorOr<void> FileBackedRegion::msync(vaddr_t address, size_t size, int flags)
@@ -119,7 +121,7 @@ namespace Kernel
 
 		RWLockRDGuard _(m_shared_data->rw_lock);
 		for (vaddr_t page_addr = first_page; page_addr < last_page; page_addr += PAGE_SIZE)
-			m_shared_data->sync_no_lock((m_offset + page_addr - m_vaddr) / PAGE_SIZE);
+			TRY(m_shared_data->sync_no_lock((m_offset + page_addr - m_vaddr) / PAGE_SIZE));
 
 		return {};
 	}
