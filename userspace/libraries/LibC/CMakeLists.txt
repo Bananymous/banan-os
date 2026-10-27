@@ -26,6 +26,7 @@ set(LIBC_SOURCES
 	net/if.cpp
 	netdb.cpp
 	netinet/in.cpp
+	new.cpp
 	poll.cpp
 	printf_impl.cpp
 	pthread.cpp
