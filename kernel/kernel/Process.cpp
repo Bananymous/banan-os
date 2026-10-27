@@ -843,24 +843,6 @@ namespace Kernel
 
 		LockGuard _(m_process_lock);
 
-		ChildWaitStatus* child_exit_status = nullptr;
-
-		{
-			SpinLockGuard _(m_child_wait_lock);
-			for (auto& child : m_child_wait_statuses)
-			{
-				if (child.pid != 0)
-					continue;
-				child_exit_status = &child;
-				break;
-			}
-			if (child_exit_status == nullptr)
-			{
-				TRY(m_child_wait_statuses.emplace_back());
-				child_exit_status = &m_child_wait_statuses.back();
-			}
-		}
-
 		auto working_directory = TRY(m_working_directory.clone());
 		auto root_file         = TRY(m_root_file.clone());
 
@@ -885,10 +867,9 @@ namespace Kernel
 				MUST(mapped_regions.push_back(TRY(mapped_region->clone(*page_table))));
 		}
 
-		const vaddr_t shared_page_vaddr = m_shared_page_vaddr;
 		page_table->map_page_at(
 			Processor::shared_page_paddr(),
-			shared_page_vaddr,
+			m_shared_page_vaddr,
 			PageTable::UserSupervisor | PageTable::Present
 		);
 
@@ -907,25 +888,42 @@ namespace Kernel
 		// NOTE: make sure the last `MUST` doesn't fail
 		TRY(forked->m_threads.reserve(1));
 
+		const auto child_pid  = forked->pid();
+		const auto child_pgrp = forked->pgrp();
+
 		{
-			SpinLockGuard _(s_process_lock);
-			TRY(s_processes.push_back(forked));
+			SpinLockGuard _(m_child_wait_lock);
+
+			auto& child_wait_status = TRY_REF([this]() -> BAN::ErrorOr<ChildWaitStatus&> {
+				for (auto& child : m_child_wait_statuses)
+					if (child.pid == 0)
+						return child;
+				TRY(m_child_wait_statuses.emplace_back());
+				return m_child_wait_statuses.back();
+			}());
+
+			{
+				SpinLockGuard _(s_process_lock);
+				TRY(s_processes.push_back(forked));
+			}
+
+			child_wait_status = {
+				.pid    = child_pid,
+				.pgrp   = child_pgrp,
+				.status = {},
+			};
 		}
 
 		forked->m_controlling_terminal = m_controlling_terminal;
-		forked->m_working_directory = BAN::move(working_directory);
-		forked->m_root_file = BAN::move(root_file);
-		forked->m_cmdline = BAN::move(cmdline);
-		forked->m_environ = BAN::move(environ);
-		forked->m_executable = BAN::move(executable);
-		forked->m_shared_page_vaddr = BAN::move(shared_page_vaddr);
-		forked->m_mapped_regions = BAN::move(mapped_regions);
-		forked->m_has_called_exec = false;
+		forked->m_working_directory    = BAN::move(working_directory);
+		forked->m_root_file            = BAN::move(root_file);
+		forked->m_cmdline              = BAN::move(cmdline);
+		forked->m_environ              = BAN::move(environ);
+		forked->m_executable           = BAN::move(executable);
+		forked->m_mapped_regions       = BAN::move(mapped_regions);
+		forked->m_shared_page_vaddr    = m_shared_page_vaddr;
+		forked->m_has_called_exec      = false;
 		memcpy(forked->m_signal_handlers, m_signal_handlers, sizeof(m_signal_handlers));
-
-		*child_exit_status = {};
-		child_exit_status->pid = forked->pid();
-		child_exit_status->pgrp = forked->pgrp();
 
 		ASSERT(this == &Process::current());
 
@@ -935,7 +933,7 @@ namespace Kernel
 		process_deleter.disable();
 		thread_deleter.disable();
 
-		return forked->pid();
+		return child_pid;
 	}
 
 	BAN::ErrorOr<long> Process::sys_exec(const char* user_path, const char* const* user_argv, const char* const* user_envp)
@@ -1162,53 +1160,42 @@ namespace Kernel
 		if (options & ~(WCONTINUED | WNOHANG | WUNTRACED))
 			return BAN::Error::from_errno(EINVAL);
 
-		// FIXME: Add WCONTINUED and WUNTRACED when stopped/continued processes are added
-
-		const auto pid_matches =
-			[&](const ChildWaitStatus& child)
-			{
-				if (pid == -1)
-					return true;
-				if (pid == 0)
-					return child.pgrp == pgrp();
-				if (pid < 0)
-					return child.pgrp == -pid;
-				return child.pid == pid;
-			};
+		const auto pid_matches = [&](const ChildWaitStatus& child) {
+			if (pid == -1)
+				return true;
+			if (pid == 0)
+				return child.pgrp == pgrp();
+			if (pid < 0)
+				return child.pgrp == -pid;
+			return child.pid == pid;
+		};
 
 		pid_t child_pid = 0;
 		int child_status = 0;
 
 		for (;;)
 		{
+			SpinLockGuard _(m_child_wait_lock);
+
 			bool found = false;
-
-			SpinLockGuard sguard(m_child_wait_lock);
-
 			for (auto& child : m_child_wait_statuses)
 			{
 				if (!pid_matches(child))
 					continue;
-
 				found = true;
+
 				if (!child.status.has_value())
 					continue;
-
 				const int status = child.status.value();
 
-				bool should_report = false;
-				if (WIFSTOPPED(status))
-					should_report = !!(options & WUNTRACED);
-				else if (WIFCONTINUED(status))
-					should_report = !!(options & WCONTINUED);
-				else
-					should_report = true;
-
-				if (!should_report)
+				if (WIFSTOPPED(status) && !(options & WUNTRACED))
+					continue;
+				if (WIFCONTINUED(status) && !(options & WCONTINUED))
 					continue;
 
 				child_pid = child.pid;
 				child_status = status;
+
 				child.status = {};
 
 				break;
