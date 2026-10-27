@@ -44,8 +44,6 @@ namespace Kernel
 
 	BAN::ErrorOr<bool> MemoryBackedRegion::allocate_page_containing_impl(vaddr_t address, bool wants_write)
 	{
-		LockGuard _(m_mutex);
-
 		ASSERT(m_type == Type::PRIVATE);
 		ASSERT(contains(address));
 
@@ -113,8 +111,6 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> MemoryBackedRegion::clone(PageTable& new_page_table)
 	{
-		LockGuard _(m_mutex);
-
 		ASSERT(&PageTable::current() == &m_page_table);
 
 		const size_t aligned_size = (m_size + PAGE_SIZE - 1) & PAGE_ADDR_MASK;
@@ -136,8 +132,6 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> MemoryBackedRegion::split(size_t offset)
 	{
-		LockGuard _(m_mutex);
-
 		ASSERT(offset && offset < m_size);
 		ASSERT(offset % PAGE_SIZE == 0);
 
@@ -164,8 +158,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> MemoryBackedRegion::copy_data_to_region(size_t offset_into_region, const uint8_t* buffer, size_t buffer_size)
 	{
-		LockGuard _(m_mutex);
-
 		ASSERT(offset_into_region + buffer_size <= m_size);
 
 		size_t written = 0;
@@ -199,9 +191,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> MemoryBackedRegion::merge_with(MemoryBackedRegion& region)
 	{
-		LockGuard _0(m_mutex);
-		LockGuard _1(region.m_mutex);
-
 		ASSERT(flags() == region.flags());
 		ASSERT(type()  == region.type());
 

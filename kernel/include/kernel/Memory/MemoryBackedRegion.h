@@ -46,7 +46,6 @@ namespace Kernel
 			const paddr_t paddr;
 		};
 		BAN::Vector<PhysicalPage*> m_physical_pages;
-		Mutex m_mutex;
 	};
 
 }
