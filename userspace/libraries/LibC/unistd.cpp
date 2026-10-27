@@ -5,8 +5,8 @@
 #include <ctype.h>
 #include <dlfcn.h>
 #include <errno.h>
+#include <execinfo.h>
 #include <fcntl.h>
-#include <inttypes.h>
 #include <pthread.h>
 #include <pwd.h>
 #include <stdarg.h>
@@ -35,10 +35,6 @@ extern "C" char** environ;
 #define DEMANGLE_BACKTRACE 0
 #define BACKTRACE_SIGNALS(X) X(SIGABRT) X(SIGBUS) X(SIGFPE) X(SIGILL) X(SIGSEGV)
 
-#if DEMANGLE_BACKTRACE
-#include <cxxabi.h>
-#endif
-
 extern "C" {
 #if UINT32_MAX == UINTPTR_MAX
 uintptr_t __stack_chk_guard = 0xe2dee396;
@@ -49,8 +45,6 @@ uintptr_t __stack_chk_guard = 0x595e9fbd94fda766;
 __attribute__((noreturn))
 void __stack_chk_fail(void) { abort(); }
 }
-
-static void __dump_backtrace(int fd, uintptr_t bp, uintptr_t ip);
 
 extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t fini_funcs)
 {
@@ -87,7 +81,7 @@ extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t
 		sigemptyset(&ss);
 
 		const struct sigaction sa {
-			.sa_sigaction = [](int sig, siginfo_t*, void* context) -> void {
+			.sa_sigaction = [](int sig, siginfo_t*, void*) -> void {
 				constexpr auto signal_name = [](int signal) -> const char* {
 					switch (signal) {
 #define BACKTRACE_SIGNAL_CASE(sig) case sig: return #sig;
@@ -104,15 +98,10 @@ extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t
 				{
 					dprintf(fd, "received signal %s, backtrace:\n", signal_name(sig));
 
-					const auto& mcontext = static_cast<const ucontext_t*>(context)->uc_mcontext;
-#if defined(__x86_64__)
-					const uintptr_t bp = mcontext.gregs[REG_RBP];
-					const uintptr_t ip = mcontext.gregs[REG_RIP];
-#elif defined(__i686__)
-					const uintptr_t bp = mcontext.gregs[REG_EBP];
-					const uintptr_t ip = mcontext.gregs[REG_EIP];
-#endif
-					__dump_backtrace(fd, bp, ip);
+					void* buffer[128];
+					// NOTE: don't trace this function
+					if (const int count = backtrace(buffer, 128); count > 1)
+						backtrace_symbols_fd(buffer + 1, count - 1, fd);
 
 					close(fd);
 				}
@@ -141,62 +130,6 @@ extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t
 		atexit(fini_funcs.array_start[i]);
 	if (fini_funcs.func)
 		atexit(fini_funcs.func);
-}
-
-static void __dump_symbol(int fd, const void* address)
-{
-	const uintptr_t uptr_addr = reinterpret_cast<uintptr_t>(address);
-
-	// NOTE: dladdr is techically not async-signal-safe but it will only
-	//       cause problems if the signal interrupts dlopen or initial startup.
-
-	Dl_info_t dli;
-	if (dladdr(address, &dli) == 0)
-	{
-		dprintf(fd, "  0x%08" PRIxPTR "\n", uptr_addr);
-		return;
-	}
-
-	const uintptr_t uptr_fbase = reinterpret_cast<uintptr_t>(dli.dli_fbase);
-
-	if (dli.dli_saddr == nullptr || dli.dli_sname == nullptr)
-	{
-		dprintf(fd, "  0x%08" PRIxPTR " (%s)\n", uptr_addr - uptr_fbase, dli.dli_fname);
-		return;
-	}
-
-#if DEMANGLE_BACKTRACE
-	int status;
-	char* demangled = abi::__cxa_demangle(dli.dli_sname, nullptr, nullptr, &status);
-	const char* symbol_name = status ? dli.dli_sname : demangled;
-#else
-	const char* symbol_name = dli.dli_sname;
-#endif
-
-	const uintptr_t uptr_saddr = reinterpret_cast<uintptr_t>(dli.dli_saddr);
-	dprintf(fd, "  0x%08" PRIxPTR " (%s) %s+0x%" PRIxPTR "\n", uptr_addr - uptr_fbase, dli.dli_fname, symbol_name, uptr_addr - uptr_saddr);
-
-#if DEMANGLE_BACKTRACE
-	free(demangled);
-#endif
-}
-
-static void __dump_backtrace(int fd, uintptr_t bp, uintptr_t ip)
-{
-	struct stackframe
-	{
-		const stackframe* bp;
-		const void* ip;
-	};
-
-	const auto* stackframe = reinterpret_cast<struct stackframe*>(bp);
-
-	__dump_symbol(fd, reinterpret_cast<const void*>(ip));
-	for (size_t i = 0; i < 128 && stackframe; i++)
-	{
-		__dump_symbol(fd, stackframe->ip);
-		stackframe = stackframe->bp;
-	}
 }
 
 void _exit(int status)
