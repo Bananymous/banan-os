@@ -5,6 +5,7 @@
 #include <locale.h>
 #include <wchar.h>
 
+#include <bits/strftime.hpp>
 #include <bits/strtoT.hpp>
 
 wint_t btowc(int c)
@@ -142,12 +143,7 @@ size_t wcsxfrm_l(wchar_t* __restrict ws1, const wchar_t* __restrict ws2, size_t 
 
 size_t wcsftime(wchar_t* __restrict wcs, size_t maxsize, const wchar_t* __restrict format, const struct tm* __restrict timeptr)
 {
-	(void)wcs;
-	(void)maxsize;
-	(void)format;
-	(void)timeptr;
-	fprintf(stddbg, "TODO: wcsftime");
-	return 0;
+	return _strftime(wcs, maxsize, format, timeptr);
 }
 
 int wcscmp(const wchar_t* ws1, const wchar_t* ws2)
