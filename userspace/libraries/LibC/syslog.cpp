@@ -1,26 +1,36 @@
 #include <stdio.h>
 #include <string.h>
 #include <syslog.h>
+#include <unistd.h>
 
-static const char* s_ident = nullptr;
-
+static const char* s_log_ident = nullptr;
 static FILE* s_log_file = nullptr;
+static int s_log_mask = LOG_UPTO(LOG_DEBUG);
 
-void openlog(const char* ident, int option, int facility)
+void openlog(const char* ident, int logopt, int facility)
 {
-	if (s_log_file == nullptr)
+	(void)facility;
+
+	if ((logopt & LOG_NDELAY) && s_log_file == nullptr)
 		s_log_file = fopen("/dev/debug", "w");
 
-	(void)option;
-	(void)facility;
-	s_ident = ident;
+	s_log_ident = ident;
+}
+
+int setlogmask(int maskpri)
+{
+	const int old = s_log_mask;
+	if (maskpri != 0)
+		s_log_mask = maskpri;
+	return old;
 }
 
 void closelog()
 {
+	if (s_log_file == nullptr)
+		return;
 	fclose(s_log_file);
 	s_log_file = nullptr;
-	s_ident = nullptr;
 }
 
 void syslog(int priority, const char* format, ...)
@@ -33,10 +43,14 @@ void syslog(int priority, const char* format, ...)
 
 void vsyslog(int priority, const char* format, va_list ap)
 {
-	(void)priority;
+	if (!(LOG_MASK(priority) & s_log_mask))
+		return;
 
-	if (s_ident)
-		fprintf(s_log_file, "%s: ", s_ident);
+	if (!s_log_file && !(s_log_file = fopen("/dev/debug", "w")))
+		return;
+
+	if (s_log_ident)
+		fprintf(s_log_file, "%s: ", s_log_ident);
 
 	vfprintf(s_log_file, format, ap);
 
