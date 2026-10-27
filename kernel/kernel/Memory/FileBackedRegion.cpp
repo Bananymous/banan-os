@@ -139,11 +139,8 @@ namespace Kernel
 		{
 			ASSERT(m_shared_data);
 
-			uint8_t page_buffer[PAGE_SIZE];
-
 			m_shared_data->rw_lock.rd_lock();
 
-			bool shared_data_has_correct_page = false;
 			if (m_shared_data->pages[shared_page_index] == 0)
 			{
 				m_shared_data->rw_lock.rd_unlock();
@@ -151,10 +148,8 @@ namespace Kernel
 				const size_t offset = (vaddr - m_vaddr) + m_offset;
 				ASSERT(offset % PAGE_SIZE == 0);
 
-				const size_t bytes = BAN::Math::min<size_t>(m_inode->size() - offset, PAGE_SIZE);
-
-				TRY(m_inode->read(offset, BAN::ByteSpan(page_buffer, bytes)));
-				memset(page_buffer + bytes, 0, PAGE_SIZE - bytes);
+				uint8_t page_buffer[PAGE_SIZE] {};
+				TRY(m_inode->read(offset, BAN::ByteSpan(page_buffer, BAN::Math::min<size_t>(m_inode->size() - offset, PAGE_SIZE))));
 
 				{
 					RWLockWRGuard _(m_shared_data->rw_lock);
@@ -166,11 +161,12 @@ namespace Kernel
 						PageTable::with_per_cpu_fast_page(m_shared_data->pages[shared_page_index], [&](void* addr) {
 							memcpy(addr, page_buffer, PAGE_SIZE);
 						});
-						shared_data_has_correct_page = true;
 					}
 				}
 
 				m_shared_data->rw_lock.rd_lock();
+
+				ASSERT(m_shared_data->pages[shared_page_index]);
 			}
 
 			BAN::ScopeGuard _([this] { m_shared_data->rw_lock.rd_unlock(); });
@@ -180,14 +176,11 @@ namespace Kernel
 				const paddr_t paddr = Heap::get().take_free_page();
 				if (paddr == 0)
 					return BAN::Error::from_errno(ENOMEM);
-				if (!shared_data_has_correct_page)
-				{
-					PageTable::with_per_cpu_fast_page(m_shared_data->pages[shared_page_index], [&](void* addr) {
-						memcpy(page_buffer, addr, PAGE_SIZE);
+				// NOTE: This is kinda ugly but I don't have support for two per cpu fast pages
+				PageTable::with_fast_page(m_shared_data->pages[shared_page_index], [paddr] {
+					PageTable::with_per_cpu_fast_page(paddr, [](void* addr) {
+						memcpy(addr, PageTable::fast_page_as_ptr(), PAGE_SIZE);
 					});
-				}
-				PageTable::with_per_cpu_fast_page(paddr, [&](void* addr) {
-					memcpy(addr, page_buffer, PAGE_SIZE);
 				});
 				m_dirty_pages[local_page_index] = paddr;
 				m_page_table.map_page_at(paddr, vaddr, m_flags);
