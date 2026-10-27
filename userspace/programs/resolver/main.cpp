@@ -203,28 +203,39 @@ BAN::Optional<DNSResponse> read_dns_response(int socket)
 		response_span = response_span.slice(1 + 4);
 	}
 
-	const auto read_name_literal = [](BAN::ConstByteSpan& span) -> BAN::String {
+	const auto read_name = [&](BAN::ConstByteSpan& out_span) -> BAN::String {
+		BAN::ConstByteSpan temp;
+		auto* span = &out_span;
+
 		BAN::String result;
-		while (span[0])
+		while ((*span)[0])
 		{
-			if (!result.empty())
-				MUST(result.push_back('.'));
-			MUST(result.append(BAN::StringView { span.as_span<const char>().data() + 1, span[0] }));
-			span = span.slice(1 + span[0]);
+			switch ((*span)[0] >> 6)
+			{
+				case 0b00:
+				{
+					const size_t length = (*span)[0];
+					if (!result.empty())
+						MUST(result.push_back('.'));
+					MUST(result.append({ reinterpret_cast<const char*>(span->data() + 1), length }));
+					*span = span->slice(length + 1);
+					break;
+				}
+				case 0b01:
+				case 0b10:
+					ASSERT_NOT_REACHED();
+				case 0b11:
+				{
+					const size_t offset = (((*span)[0] & 0x3F) << 8) | (*span)[1];
+					*span = span->slice(2);
+					temp = { response_storage + offset, static_cast<size_t>(nrecv - offset) };
+					span = &temp;
+					break;
+				}
+			}
 		}
-		span = span.slice(1);
+
 		return result;
-	};
-
-	const auto read_name = [&](BAN::ConstByteSpan& span) -> BAN::String {
-		if ((span[0] & 0xC0) != 0xC0)
-			return read_name_literal(span);
-
-		const uint16_t offset = ((span[0] & 0x3F) << 8) | span[1];
-		span = span.slice(2);
-
-		auto label = BAN::ConstByteSpan { response_storage + offset, static_cast<size_t>(nrecv - offset) };
-		return read_name_literal(label);
 	};
 
 	for (size_t i = 0; i < response.answer_count; i++)
@@ -232,30 +243,31 @@ BAN::Optional<DNSResponse> read_dns_response(int socket)
 		auto name = read_name(response_span);
 
 		const auto& answer = response_span.as<const DNSAnswer>();
-		response_span = response_span.slice(sizeof(DNSAnswer));
 
+		auto response_data = response_span.slice(sizeof(DNSAnswer), answer.data_len());
 		switch (answer.type())
 		{
 			case QTYPE::A:
 				MUST(result.entries.push_back({
 					.name = BAN::move(name),
 					.entry = {
-						BAN::IPv4Address(response_span.as<const uint32_t>()),
+						BAN::IPv4Address(response_data.as<const uint32_t>()),
 						time(nullptr) + answer.ttl(),
 					},
 				}));
-				response_span = response_span.slice(sizeof(uint32_t));
 				break;
 			case QTYPE::CNAME:
 				MUST(result.entries.push_back({
 					.name = BAN::move(name),
 					.entry = {
-						read_name(response_span),
+						read_name(response_data),
 						time(nullptr) + answer.ttl()
 					},
 				}));
 				break;
 		}
+
+		response_span = response_span.slice(sizeof(DNSAnswer) + answer.data_len());
 	}
 
 	return result;
