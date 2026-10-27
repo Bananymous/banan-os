@@ -984,8 +984,32 @@ int sscanf(const char* s, const char* format, ...)
 	return ret;
 }
 
-// TODO
-char* tempnam(const char*, const char*);
+char* tempnam(const char* dir, const char* pfx)
+{
+	if (const char* tmpdir = getenv("TMPDIR"))
+		dir = tmpdir;
+	if (dir == nullptr)
+		dir = P_tmpdir;
+
+	if (pfx == nullptr)
+		pfx = "tmp";
+
+	const size_t template_len = strlen(dir) + 1 + strlen(pfx) + 1 + 6 + 1;
+
+	char* template_ = static_cast<char*>(malloc(template_len));
+	if (template_ == nullptr)
+		return nullptr;
+
+	sprintf(template_, "%s/%s-XXXXXX", dir, pfx);
+
+	mktemp(template_);
+
+	if (template_[0])
+		return template_;
+
+	free(template_);
+	return nullptr;
+}
 
 FILE* tmpfile(void)
 {
