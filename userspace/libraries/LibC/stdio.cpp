@@ -3,6 +3,7 @@
 #include <BAN/Math.h>
 #include <BAN/PlacementNew.h>
 
+#include <bits/fork_hook.h>
 #include <bits/printf.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -56,6 +57,13 @@ struct ScopeLock
 
 static FILE s_files[FOPEN_MAX];
 
+// NOTE: this will make fork block while any FILE operation is in progress
+FORK_HOOK(0,
+	[] { for (auto& file : s_files) pthread_mutex_lock(&file.mutex); },
+	[] { for (auto& file : s_files) pthread_mutex_unlock(&file.mutex); },
+	[] { for (auto& file : s_files) file.mutex = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP; }
+);
+
 FILE* __stdin  = &s_files[0];
 FILE* __stdout = &s_files[1];
 FILE* __stderr = &s_files[2];
@@ -93,12 +101,7 @@ static void _init_stdio()
 	for (size_t i = 0; i < FOPEN_MAX; i++)
 	{
 		init_closed_file(&s_files[i]);
-
-		pthread_mutexattr_t attr;
-		pthread_mutexattr_init(&attr);
-		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-		pthread_mutex_init(&s_files[i].mutex, &attr);
-		pthread_mutexattr_destroy(&attr);
+		s_files[i].mutex = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 	}
 
 	s_files[STDIN_FILENO].fd          = STDIN_FILENO;

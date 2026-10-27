@@ -554,12 +554,8 @@ int execvpe(const char* pathname, char* const argv[], char* const envp[])
 
 pid_t fork(void)
 {
-	_pthread_call_atfork(_PTHREAD_ATFORK_PREPARE);
-	const pid_t pid = syscall(SYS_FORK);
-	if (pid == -1)
-		return -1;
-	_pthread_call_atfork(pid ? _PTHREAD_ATFORK_PARENT : _PTHREAD_ATFORK_CHILD);
-	return pid;
+	extern pid_t _pthread_fork();
+	return _pthread_fork();
 }
 
 int pipe(int fildes[2])

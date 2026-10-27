@@ -5,6 +5,7 @@
 #include <BAN/String.h>
 
 #include <alloca.h>
+#include <bits/fork_hook.h>
 #include <dlfcn.h>
 #include <elf.h>
 #include <fcntl.h>
@@ -141,25 +142,25 @@ extern "C"
 	static void _resolve_symbol_trampoline();
 }
 
+FORK_SAFE_MUTEX(999, s_global_mutex, PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP);
+
 struct ScopedGlobalLock
 {
 	ScopedGlobalLock()
 	{
 		m_saved_errno = errno;
-		pthread_mutex_lock(&m_mutex);
+		pthread_mutex_lock(&s_global_mutex);
 	}
 
 	~ScopedGlobalLock()
 	{
-		pthread_mutex_unlock(&m_mutex);
+		pthread_mutex_unlock(&s_global_mutex);
 		errno = m_saved_errno;
 	}
 
 private:
-	static pthread_mutex_t m_mutex;
 	int m_saved_errno { 0 };
 };
-pthread_mutex_t ScopedGlobalLock::m_mutex { { PTHREAD_MUTEX_RECURSIVE, 0 }, 0, 0, 0 };
 
 LoadedObject::~LoadedObject()
 {

@@ -2,6 +2,7 @@
 #include <BAN/Math.h>
 
 #include <assert.h>
+#include <bits/fork_hook.h>
 #include <errno.h>
 #include <malloc.h>
 #include <pthread.h>
@@ -218,7 +219,7 @@ static size_t s_allocator_count { 0 };
 static size_t s_allocator_capacity { 0 };
 
 static BitmapAllocator* s_allocators { nullptr };
-static pthread_mutex_t s_allocator_lock = PTHREAD_MUTEX_INITIALIZER;
+FORK_SAFE_MUTEX(900, s_allocator_lock, PTHREAD_MUTEX_INITIALIZER);
 
 static BAN::Atomic<size_t> s_mmap_count { 0 };
 static BAN::Atomic<size_t> s_mmap_bytes { 0 };

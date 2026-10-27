@@ -1,3 +1,4 @@
+#include <bits/fork_hook.h>
 #include <limits.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -14,7 +15,7 @@ static atexit_func_entry_t s_atexit_funcs_storage[ATEXIT_MAX];
 static atexit_func_entry_t* s_atexit_funcs = s_atexit_funcs_storage;
 static size_t s_atexit_funcs_capacity = ATEXIT_MAX;
 static size_t s_atexit_func_count = 0;
-static pthread_mutex_t s_atexit_mutex = PTHREAD_MUTEX_INITIALIZER;
+FORK_SAFE_MUTEX(0, s_atexit_mutex, PTHREAD_MUTEX_INITIALIZER);
 
 extern "C" int __cxa_atexit(void(*func)(void*), void* arg, void* dso_handle)
 {

@@ -3,6 +3,7 @@
 #include <BAN/Debug.h>
 #include <BAN/PlacementNew.h>
 
+#include <bits/fork_hook.h>
 #include <errno.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -177,13 +178,13 @@ void pthread_cleanup_push(void (*routine)(void*), void* arg)
 static pthread_key_t s_pthread_key_current = 1;
 static pthread_key_t s_pthread_key_map[PTHREAD_KEYS_MAX] {};
 static void (*s_pthread_key_destructors[PTHREAD_KEYS_MAX])(void*) {};
-static pthread_spinlock_t s_pthread_key_lock = PTHREAD_SPIN_INITIALIZER;
+FORK_SAFE_MUTEX(0, s_pthread_key_mutex, PTHREAD_MUTEX_INITIALIZER);
 
 int pthread_key_create(pthread_key_t* key, void (*destructor)(void*))
 {
 	int ret = EAGAIN;
 
-	pthread_spin_lock(&s_pthread_key_lock);
+	pthread_mutex_lock(&s_pthread_key_mutex);
 	for (size_t i = 0; i < PTHREAD_KEYS_MAX; i++)
 	{
 		if (s_pthread_key_map[i])
@@ -193,7 +194,7 @@ int pthread_key_create(pthread_key_t* key, void (*destructor)(void*))
 		ret = 0;
 		break;
 	}
-	pthread_spin_unlock(&s_pthread_key_lock);
+	pthread_mutex_unlock(&s_pthread_key_mutex);
 
 	return ret;
 }
@@ -202,7 +203,7 @@ int pthread_key_delete(pthread_key_t key)
 {
 	int ret = EINVAL;
 
-	pthread_spin_lock(&s_pthread_key_lock);
+	pthread_mutex_lock(&s_pthread_key_mutex);
 	for (size_t i = 0; i < PTHREAD_KEYS_MAX; i++)
 	{
 		if (s_pthread_key_map[i] != key)
@@ -212,7 +213,7 @@ int pthread_key_delete(pthread_key_t key)
 		ret = 0;
 		break;
 	}
-	pthread_spin_unlock(&s_pthread_key_lock);
+	pthread_mutex_unlock(&s_pthread_key_mutex);
 
 	return ret;
 }
@@ -223,7 +224,7 @@ void* pthread_getspecific(pthread_key_t key)
 
 	auto* uthread = _get_uthread();
 
-	pthread_spin_lock(&s_pthread_key_lock);
+	pthread_mutex_lock(&s_pthread_key_mutex);
 	for (size_t i = 0; i < PTHREAD_KEYS_MAX; i++)
 	{
 		if (s_pthread_key_map[i] != key)
@@ -236,7 +237,7 @@ void* pthread_getspecific(pthread_key_t key)
 		ret = uthread->specific_vals[i];
 		break;
 	}
-	pthread_spin_unlock(&s_pthread_key_lock);
+	pthread_mutex_unlock(&s_pthread_key_mutex);
 
 	return ret;
 }
@@ -247,7 +248,7 @@ int pthread_setspecific(pthread_key_t key, const void* value)
 
 	auto* uthread = _get_uthread();
 
-	pthread_spin_lock(&s_pthread_key_lock);
+	pthread_mutex_lock(&s_pthread_key_mutex);
 	for (size_t i = 0; i < PTHREAD_KEYS_MAX; i++)
 	{
 		if (s_pthread_key_map[i] != key)
@@ -258,7 +259,7 @@ int pthread_setspecific(pthread_key_t key, const void* value)
 		ret = 0;
 		break;
 	}
-	pthread_spin_unlock(&s_pthread_key_lock);
+	pthread_mutex_unlock(&s_pthread_key_mutex);
 
 	return ret;
 }
@@ -534,14 +535,14 @@ void pthread_exit(void* value_ptr)
 			void (*destructor)(void*) = nullptr;
 			void* value = nullptr;
 
-			pthread_spin_lock(&s_pthread_key_lock);
+			pthread_mutex_lock(&s_pthread_key_mutex);
 			if (s_pthread_key_map[i] && uthread->specific_keys[i] == s_pthread_key_map[i])
 			{
 				destructor = s_pthread_key_destructors[i];
 				value = uthread->specific_vals[i];
 				uthread->specific_vals[i] = nullptr;
 			}
-			pthread_spin_unlock(&s_pthread_key_lock);
+			pthread_mutex_unlock(&s_pthread_key_mutex);
 
 			if (!value || !destructor)
 				continue;
@@ -624,27 +625,60 @@ static pthread_atfork_t* s_atfork_parent = nullptr;
 static pthread_atfork_t* s_atfork_child = nullptr;
 static pthread_mutex_t s_atfork_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-void _pthread_call_atfork(int state)
-{
-	if (state == _PTHREAD_ATFORK_CHILD)
-		_get_uthread()->id = syscall(SYS_THREAD_GETID);
+static size_t s_fork_hook_count;
+static fork_hook_t s_fork_hooks[16];
 
+__attribute__((constructor))
+static void fork_hook_initializer()
+{
+	extern const fork_hook_t __start_fork_hooks[];
+	extern const fork_hook_t __stop_fork_hooks[];
+
+	s_fork_hook_count = __stop_fork_hooks - __start_fork_hooks;
+	ASSERT(s_fork_hook_count < sizeof(s_fork_hooks) / sizeof(fork_hook_t));
+
+	memcpy(s_fork_hooks, __start_fork_hooks, s_fork_hook_count * sizeof(fork_hook_t));
+	qsort_r(s_fork_hooks, s_fork_hook_count, sizeof(fork_hook_t), [](const void* a, const void* b, void*) -> int {
+		return static_cast<const fork_hook_t*>(a)->priority - static_cast<const fork_hook_t*>(b)->priority;
+	}, nullptr);
+}
+
+pid_t _pthread_fork()
+{
 	pthread_mutex_lock(&s_atfork_mutex);
 
-	pthread_atfork_t* list = nullptr;
-	switch (state)
-	{
-		case _PTHREAD_ATFORK_PREPARE: list = s_atfork_prepare; break;
-		case _PTHREAD_ATFORK_PARENT:  list = s_atfork_parent;  break;
-		case _PTHREAD_ATFORK_CHILD:   list = s_atfork_child;   break;
-		default:
-			ASSERT_NOT_REACHED();
-	}
-
-	for (; list; list = list->next)
+	for (auto* list = s_atfork_prepare; list; list = list->next)
 		list->function();
 
-	pthread_mutex_unlock(&s_atfork_mutex);
+	for (size_t i = 0; i < s_fork_hook_count; i++)
+		s_fork_hooks[i].prepare();
+
+	const pid_t pid = syscall(SYS_FORK);
+
+	if (pid == 0)
+	{
+		_get_uthread()->id = syscall(SYS_THREAD_GETID);
+
+		for (size_t i = 0; i < s_fork_hook_count; i++)
+			s_fork_hooks[s_fork_hook_count - i - 1].child();
+
+		for (auto* list = s_atfork_child; list; list = list->next)
+			list->function();
+
+		s_atfork_mutex = PTHREAD_MUTEX_INITIALIZER;
+	}
+	else
+	{
+		for (size_t i = 0; i < s_fork_hook_count; i++)
+			s_fork_hooks[s_fork_hook_count - i - 1].parent();
+
+		for (auto* list = s_atfork_parent; list; list = list->next)
+			list->function();
+
+		pthread_mutex_unlock(&s_atfork_mutex);
+	}
+
+	return pid;
 }
 
 int pthread_atfork(void (*prepare)(void), void (*parent)(void), void(*child)(void))
