@@ -65,36 +65,49 @@ namespace Kernel
 		switch (m_type)
 		{
 			case Type::PRIVATE:
-				for (paddr_t dirty_page : m_dirty_pages)
-					if (dirty_page)
-						Heap::get().release_page(dirty_page);
+			{
+				auto& heap = Heap::get();
+				for (const auto paddr : m_dirty_pages)
+					if (paddr != 0)
+						heap.release_page(paddr);
 				break;
+			}
 			case Type::SHARED:
-				const size_t page_count = BAN::Math::div_round_up<size_t>(size(), PAGE_SIZE);
-				for (size_t i = 0; i < page_count; i++)
-					if (m_page_table.get_page_flags(m_vaddr + i * PAGE_SIZE) & PageTable::Flags::ReadWrite)
-						BAN::atomic_sub_fetch(m_shared_data->writers[m_offset / PAGE_SIZE + i], 1);
+			{
+				if (!(m_flags & PageTable::Flags::ReadWrite))
+					break;
+
+				RWLockRDGuard _(m_shared_data->rw_lock);
+				for (vaddr_t vaddr = m_vaddr; vaddr < m_vaddr + m_size; vaddr += PAGE_SIZE)
+				{
+					if (!(m_page_table.get_page_flags(vaddr) & PageTable::Flags::ReadWrite))
+						continue;
+					const size_t index = (vaddr - m_vaddr) / PAGE_SIZE;
+					if (BAN::atomic_sub_fetch(m_shared_data->writers[index], 1) == 0)
+						if (auto ret = m_shared_data->sync_no_lock(index); ret.is_error())
+							dwarnln("failed to sync mmapped file backing: {}", ret.error());
+				}
+
 				break;
+			}
 		}
 	}
 
 	SharedFileData::~SharedFileData()
 	{
-		// TODO: validate that this is not locked
-
+		auto& heap = Heap::get();
 		for (size_t i = 0; i < pages.size(); i++)
 		{
 			if (pages[i] == 0)
 				continue;
-			if (auto ret = sync_no_lock(i); ret.is_error())
-				dwarnln("failed to sync mmapped file backing: {}", ret.error());
-			Heap::get().release_page(pages[i]);
+			ASSERT(!writers[i]);
+			heap.release_page(pages[i]);
 		}
 	}
 
 	BAN::ErrorOr<void> SharedFileData::sync_no_lock(size_t page_index)
 	{
-		if (pages[page_index] == 0 || BAN::atomic_load(writers[page_index]) > 0)
+		if (pages[page_index] == 0)
 			return {};
 
 		uint8_t page_buffer[PAGE_SIZE];
@@ -121,7 +134,12 @@ namespace Kernel
 
 		RWLockRDGuard _(m_shared_data->rw_lock);
 		for (vaddr_t page_addr = first_page; page_addr < last_page; page_addr += PAGE_SIZE)
-			TRY(m_shared_data->sync_no_lock((m_offset + page_addr - m_vaddr) / PAGE_SIZE));
+		{
+			const size_t index = (m_offset + page_addr - m_vaddr) / PAGE_SIZE;
+			// NOTE: only sync pages mapped writable
+			if (m_shared_data->writers[index])
+				TRY(m_shared_data->sync_no_lock(index));
+		}
 
 		return {};
 	}
