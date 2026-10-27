@@ -283,6 +283,8 @@ namespace Kernel
 		// You must hold reader end of m_mapped_region_lock when calling this.
 		size_t find_mapped_region(vaddr_t) const;
 
+		BAN::ErrorOr<void> move_futexes_from_page(paddr_t old_paddr, paddr_t new_paddr);
+
 		BAN::ErrorOr<VirtualFileSystem::File> find_file(int fd, const char* path, int flags) const;
 		BAN::ErrorOr<FileParent> find_parent_file(int fd, const char* path, int flags) const;
 		BAN::ErrorOr<VirtualFileSystem::File> find_relative_parent(int fd, const char* path) const;
@@ -366,14 +368,19 @@ namespace Kernel
 
 		struct futex_t
 		{
+			futex_t(size_t offset)
+				: offset(offset)
+			{ }
+
+			const size_t offset;
 			Mutex mutex;
 			ThreadBlocker blocker;
 		};
 
-		static BAN::HashMap<paddr_t, BAN::UniqPtr<futex_t>> s_futexes;
+		static BAN::HashMap<paddr_t, BAN::Vector<BAN::UniqPtr<futex_t>>> s_futexes;
 		static Mutex s_futex_lock;
 
-		BAN::HashMap<paddr_t, BAN::UniqPtr<futex_t>> m_futexes;
+		BAN::HashMap<paddr_t, BAN::Vector<BAN::UniqPtr<futex_t>>> m_futexes;
 		Mutex m_futex_lock;
 
 		BAN::Vector<Thread*> m_threads;

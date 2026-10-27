@@ -43,7 +43,7 @@ namespace Kernel
 	static BAN::Vector<Process*> s_processes;
 	static RecursiveSpinLock s_process_lock;
 
-	BAN::HashMap<paddr_t, BAN::UniqPtr<Process::futex_t>> Process::s_futexes;
+	BAN::HashMap<paddr_t, BAN::Vector<BAN::UniqPtr<Process::futex_t>>> Process::s_futexes;
 	Mutex Process::s_futex_lock;
 
 	static void for_each_process(const BAN::Function<BAN::Iteration(Process&)>& callback)
@@ -3430,8 +3430,47 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<void> Process::move_futexes_from_page(paddr_t old_paddr, paddr_t new_paddr)
+	{
+		// global (shared) futexes have stable physical addresseses and don't need moving
+
+		LockGuard _(m_futex_lock);
+
+		auto old_it = m_futexes.find(old_paddr);
+		if (old_it == m_futexes.end())
+			return {};
+
+		auto new_it = m_futexes.find(new_paddr);
+		if (new_it == m_futexes.end())
+			TRY(m_futexes.insert(new_paddr, BAN::move(old_it->value)));
+		else
+		{
+			TRY(new_it->value.reserve(new_it->value.size() + old_it->value.size()));
+			for (auto& futex : old_it->value)
+				MUST(new_it->value.push_back(BAN::move(futex)));
+
+			BAN::sort::sort(new_it->value.begin(), new_it->value.end(), [](const auto& a, const auto& b) {
+				return a->offset <= b->offset;
+			});
+
+			for (size_t i = 1; i < new_it->value.size(); i++)
+			{
+				if (new_it->value[i - 1]->offset != new_it->value[i]->offset)
+					continue;
+				new_it->value[i]->blocker.unblock();
+				new_it->value.remove(i--);
+			}
+		}
+
+		m_futexes.remove(old_it);
+
+		return {};
+	}
+
 	BAN::ErrorOr<long> Process::sys_futex(int op, const uint32_t* user_addr, uint32_t val, const timespec* user_abstime)
 	{
+		// TODO: unallocate futexes at some point. maybe periodic scan with last used timestamp?
+
 		const bool is_realtime = (op & FUTEX_REALTIME);
 		const bool is_private  = (op & FUTEX_PRIVATE);
 		op &= ~(FUTEX_PRIVATE | FUTEX_REALTIME);
@@ -3446,7 +3485,8 @@ namespace Kernel
 			TRY(read_atomic_u32_from_user(user_addr));
 
 			const vaddr_t vaddr = reinterpret_cast<vaddr_t>(user_addr);
-			const paddr_t paddr = m_page_table->physical_address_of(vaddr & PAGE_ADDR_MASK) | (vaddr & ~PAGE_ADDR_MASK);
+			const paddr_t paddr = m_page_table->physical_address_of(vaddr & PAGE_ADDR_MASK);
+			const size_t offset = vaddr & ~PAGE_ADDR_MASK;
 			if (paddr == 0)
 				return BAN::Error::from_errno(EFAULT);
 
@@ -3456,16 +3496,26 @@ namespace Kernel
 			LockGuard _(futex_lock);
 
 			auto it = futexes.find(paddr);
-			if (it != futexes.end())
-				futex = it->value.ptr();
-			else switch (op)
+			if (it == futexes.end())
 			{
-				case FUTEX_WAIT:
-					futex = TRY(futexes.emplace(paddr, TRY(BAN::UniqPtr<futex_t>::create())))->value.ptr();
-					break;
-				case FUTEX_WAKE:
+				if (op == FUTEX_WAKE)
 					return 0;
+				it = TRY(futexes.emplace(paddr));
 			}
+			auto& futex_list = it->value;
+
+			size_t i = 0;
+			for (; i < futex_list.size(); i++)
+				if (futex_list[i]->offset >= offset)
+					break;
+			if (i == futex_list.size() || futex_list[i]->offset != offset)
+			{
+				if (op == FUTEX_WAKE)
+					return 0;
+				TRY(futex_list.insert(i, TRY(BAN::UniqPtr<futex_t>::create(offset))));
+			}
+
+			futex = futex_list[i].ptr();
 		}
 
 		LockGuard _(futex->mutex);
@@ -4065,18 +4115,12 @@ namespace Kernel
 	{
 		ASSERT(&Process::current() == this);
 
-		const auto is_allocated =
-			[&]() -> bool
-			{
-				auto wanted_flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
-				if (wants_write)
-					wanted_flags |= PageTable::Flags::ReadWrite;
-				if (wants_exec)
-					wanted_flags |= PageTable::Flags::Execute;
-				if ((m_page_table->get_page_flags(address & PAGE_ADDR_MASK) & wanted_flags) == wanted_flags)
-					return true;
-				return false;
-			};
+		const auto is_allocated = [&]() -> bool {
+			const auto wanted_flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present
+				| (wants_write ? PageTable::Flags::ReadWrite : 0)
+				| (wants_exec  ? PageTable::Flags::Execute   : 0);
+			return ((m_page_table->get_page_flags(address & PAGE_ADDR_MASK) & wanted_flags) == wanted_flags);
+		};
 
 		{
 			RWLockRDGuard _(m_memory_region_lock);
@@ -4097,7 +4141,13 @@ namespace Kernel
 		if (!region->contains(address))
 			return false;
 
-		return region->allocate_page_containing(address, wants_write);
+		const paddr_t old_paddr = m_page_table->physical_address_of(address & PAGE_ADDR_MASK);
+		const bool result = TRY(region->allocate_page_containing(address, wants_write));
+		const paddr_t new_paddr = m_page_table->physical_address_of(address & PAGE_ADDR_MASK);
+		if (old_paddr && old_paddr != new_paddr)
+			TRY(move_futexes_from_page(old_paddr, new_paddr));
+
+		return result;
 	}
 
 	BAN::ErrorOr<void> Process::validate_and_pin_pointer_access(const void* ptr, size_t size, bool needs_write, MemoryPinner& pinner)
@@ -4164,8 +4214,13 @@ namespace Kernel
 				const auto flags = PageTable::UserSupervisor | (needs_write ? PageTable::ReadWrite : 0) | PageTable::Present;
 				if ((m_page_table->get_page_flags(page_base + p * PAGE_SIZE) & flags) == flags)
 					continue;
+
+				const paddr_t old_paddr = m_page_table->physical_address_of(page_base + p * PAGE_SIZE);
 				if (!TRY(region->allocate_page_containing(page_base + p * PAGE_SIZE, needs_write)))
 					return BAN::Error::from_errno(EFAULT);
+				const paddr_t new_paddr = m_page_table->physical_address_of(page_base + p * PAGE_SIZE);
+				if (old_paddr && old_paddr != new_paddr)
+					TRY(move_futexes_from_page(old_paddr, new_paddr));
 			}
 
 			if (region->contains(vaddr + size - 1))
