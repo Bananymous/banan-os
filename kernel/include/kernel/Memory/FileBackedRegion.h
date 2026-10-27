@@ -37,6 +37,8 @@ namespace Kernel
 		BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> split(size_t offset) override;
 
 	protected:
+		BAN::ErrorOr<void> mprotect_prepare(PageTable::flags_t) override;
+
 		BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t vaddr, bool wants_write) override;
 
 	private:

@@ -58,6 +58,8 @@ namespace Kernel
 		MemoryRegion(PageTable&, size_t size, Type type, PageTable::flags_t flags, int status_flags);
 		BAN::ErrorOr<void> initialize(AddressRange);
 
+		virtual BAN::ErrorOr<void> mprotect_prepare(PageTable::flags_t) { return {}; }
+
 		virtual BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t address, bool wants_write) = 0;
 
 	protected:

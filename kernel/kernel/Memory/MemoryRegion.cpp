@@ -62,15 +62,12 @@ namespace Kernel
 		if (m_flags == new_page_flags)
 			return {};
 
-		const size_t page_count = BAN::Math::div_round_up<size_t>(m_size, PAGE_SIZE);
-		for (size_t i = 0; i < page_count; i++)
-		{
-			const vaddr_t vaddr = m_vaddr + i * PAGE_SIZE;
-			const paddr_t paddr = m_page_table.physical_address_of(vaddr);
-			if (paddr == 0)
-				continue;
-			m_page_table.map_page_at(paddr, vaddr, new_page_flags);
-		}
+		TRY(mprotect_prepare(new_page_flags));
+
+		for (vaddr_t vaddr = m_vaddr; vaddr < m_vaddr + m_size; vaddr += PAGE_SIZE)
+			if (m_page_table.physical_address_of(vaddr))
+				m_page_table.map_page_at(0, vaddr, PageTable::Flags::Reserved, PageTable::MemoryType::Normal, false);
+		m_page_table.invalidate_range(m_vaddr, BAN::Math::div_round_up<size_t>(m_size, PAGE_SIZE), true);
 
 		m_flags = new_page_flags;
 		return {};

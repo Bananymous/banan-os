@@ -144,6 +144,26 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<void> FileBackedRegion::mprotect_prepare(PageTable::flags_t new_page_flags)
+	{
+		if (m_type != Type::SHARED)
+			return {};
+		if (!(m_flags & PageTable::Flags::ReadWrite) || (new_page_flags & PageTable::Flags::ReadWrite))
+			return {};
+
+		RWLockRDGuard _(m_shared_data->rw_lock);
+		for (vaddr_t vaddr = m_vaddr; vaddr < m_vaddr + m_size; vaddr += PAGE_SIZE)
+		{
+			if (!(m_page_table.get_page_flags(vaddr) & PageTable::Flags::ReadWrite))
+				continue;
+			const size_t index = (vaddr - m_vaddr) / PAGE_SIZE;
+			if (BAN::atomic_sub_fetch(m_shared_data->writers[index], 1) == 0)
+				TRY(m_shared_data->sync_no_lock(index));
+		}
+
+		return {};
+	}
+
 	BAN::ErrorOr<bool> FileBackedRegion::allocate_page_containing_impl(vaddr_t address, bool wants_write)
 	{
 		ASSERT(contains(address));
