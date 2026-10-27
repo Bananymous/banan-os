@@ -4,6 +4,7 @@
 #include <BAN/UTF8.h>
 
 #include <errno.h>
+#include <execinfo.h>
 #include <fcntl.h>
 #include <locale.h>
 #include <signal.h>
@@ -21,6 +22,14 @@
 
 void abort(void)
 {
+	if (const int fd = open("/dev/debug", O_RDONLY); fd != -1)
+	{
+		void* buffer[128];
+		if (const int count = backtrace(buffer, 128); count > 0)
+			backtrace_symbols_fd(buffer, count, fd);
+		close(fd);
+	}
+
 	sigset_t set;
 	sigemptyset(&set);
 	sigaddset(&set, SIGABRT);
