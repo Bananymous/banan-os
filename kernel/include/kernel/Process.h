@@ -39,6 +39,8 @@ namespace Kernel
 	public:
 		using entry_t = Thread::entry_t;
 
+		static constexpr vaddr_t shared_page_vaddr = USERSPACE_END - PAGE_SIZE;
+
 	public:
 		static BAN::ErrorOr<Process*> create_userspace(const Credentials&, BAN::StringView path, BAN::Span<BAN::StringView> arguments);
 		~Process();
@@ -227,8 +229,6 @@ namespace Kernel
 
 		static Process& current() { return Thread::current().process(); }
 
-		vaddr_t shared_page_vaddr() const { return m_shared_page_vaddr; }
-
 		PageTable& page_table() { return *m_page_table; }
 
 		size_t proc_meminfo(off_t offset, BAN::ByteSpan) const;
@@ -364,8 +364,6 @@ namespace Kernel
 
 		VirtualFileSystem::File m_working_directory;
 		VirtualFileSystem::File m_root_file;
-
-		vaddr_t m_shared_page_vaddr { 0 };
 
 		struct futex_t
 		{

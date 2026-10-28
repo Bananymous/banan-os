@@ -140,12 +140,11 @@ namespace Kernel
 		if (executable_inode->mode().mode & +Inode::Mode::ISGID)
 			process->m_credentials.set_egid(executable_inode->gid());
 
-		process->m_shared_page_vaddr = process->page_table().reserve_free_page(executable.interp_base.value_or(0x400000), USERSPACE_END);
-		if (process->m_shared_page_vaddr == 0)
+		if (!process->page_table().is_page_free(shared_page_vaddr))
 			return BAN::Error::from_errno(ENOMEM);
 		process->page_table().map_page_at(
 			Processor::shared_page_paddr(),
-			process->m_shared_page_vaddr,
+			shared_page_vaddr,
 			PageTable::UserSupervisor | PageTable::Present
 		);
 
@@ -181,7 +180,7 @@ namespace Kernel
 
 		TRY(auxiliary_vector.push_back({
 			.a_type = AT_SHARED_PAGE,
-			.a_un = { .a_ptr = reinterpret_cast<void*>(process->m_shared_page_vaddr) },
+			.a_un = { .a_ptr = reinterpret_cast<void*>(shared_page_vaddr) },
 		}));
 
 		TRY(auxiliary_vector.push_back({
@@ -874,9 +873,11 @@ namespace Kernel
 				MUST(mapped_regions.push_back(TRY(mapped_region->clone(*page_table))));
 		}
 
+		if (!page_table->is_page_free(shared_page_vaddr))
+			return BAN::Error::from_errno(ENOMEM);
 		page_table->map_page_at(
 			Processor::shared_page_paddr(),
-			m_shared_page_vaddr,
+			shared_page_vaddr,
 			PageTable::UserSupervisor | PageTable::Present
 		);
 
@@ -928,7 +929,6 @@ namespace Kernel
 		forked->m_environ              = BAN::move(environ);
 		forked->m_executable           = BAN::move(executable);
 		forked->m_mapped_regions       = BAN::move(mapped_regions);
-		forked->m_shared_page_vaddr    = m_shared_page_vaddr;
 		forked->m_vma_bump_base        = m_vma_bump_base;
 		forked->m_vma_bump_reset       = m_vma_bump_reset;
 		forked->m_has_called_exec      = false;
@@ -1001,8 +1001,7 @@ namespace Kernel
 				(last_region.vaddr() + last_region.size() + PAGE_SIZE - 1) & PAGE_ADDR_MASK;
 			});
 
-			const vaddr_t shared_page_vaddr = new_page_table->reserve_free_page(executable.interp_base.value_or(0x400000), USERSPACE_END);
-			if (shared_page_vaddr == 0)
+			if (!new_page_table->is_page_free(shared_page_vaddr))
 				return BAN::Error::from_errno(ENOMEM);
 			new_page_table->map_page_at(
 				Processor::shared_page_paddr(),
@@ -1154,8 +1153,6 @@ namespace Kernel
 
 			m_mapped_regions = BAN::move(new_mapped_regions);
 			m_page_table = BAN::move(new_page_table);
-
-			m_shared_page_vaddr = shared_page_vaddr;
 
 			m_vma_bump_base  = 0;
 			m_vma_bump_reset = vma_bump_reset;
