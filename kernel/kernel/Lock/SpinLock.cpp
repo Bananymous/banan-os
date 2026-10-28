@@ -2,21 +2,38 @@
 #include <kernel/Lock/SpinLock.h>
 #include <kernel/Processor.h>
 #include <kernel/Thread.h>
+#include <kernel/Timer/Timer.h>
+
+#define SPINLOCK_TIMEOUTS 1
 
 namespace Kernel
 {
 
 	InterruptState SpinLock::lock()
 	{
-		auto state = Processor::get_interrupt_state();
+		const auto state = Processor::get_interrupt_state();
 		Processor::set_interrupt_state(InterruptState::Disabled);
 
-		auto id = Processor::current_id().as_u32();
+		const auto id = Processor::current_id().as_u32();
 		ASSERT(m_locker.load(BAN::MemoryOrder::memory_order_relaxed) != id);
+
+#if SPINLOCK_TIMEOUTS
+		const auto start_ms = SystemTimer::is_initialized() ? SystemTimer::get().ms_since_boot() : 0;
+		bool printed { false };
+#endif
 
 		auto expected = PROCESSOR_NONE.as_u32();
 		while (!m_locker.compare_exchange(expected, id, BAN::MemoryOrder::memory_order_acquire))
 		{
+#if SPINLOCK_TIMEOUTS
+			if (!printed && SystemTimer::get().ms_since_boot() >= start_ms + 1000)
+			{
+				SpinLockGuard _(Debug::s_debug_lock);
+				dwarnln("CPU {}: stuck in SpinLock::lock", id);
+				Debug::dump_stack_trace();
+				printed = true;
+			}
+#endif
 			Processor::pause();
 			expected = PROCESSOR_NONE.as_u32();
 		}
@@ -31,7 +48,7 @@ namespace Kernel
 	{
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 
-		auto id = Processor::current_id().as_u32();
+		const auto id = Processor::current_id().as_u32();
 		ASSERT(m_locker.load(BAN::MemoryOrder::memory_order_relaxed) != id);
 
 		auto expected = PROCESSOR_NONE.as_u32();
@@ -48,9 +65,12 @@ namespace Kernel
 	{
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 		ASSERT(current_processor_has_lock());
+
 		m_locker.store(PROCESSOR_NONE.as_u32(), BAN::MemoryOrder::memory_order_release);
+
 		if (Thread::current_tid())
 			Thread::current().remove_spinlock();
+
 		if (state != InterruptState::Disabled)
 			Processor::set_interrupt_state(state);
 	}
@@ -69,21 +89,41 @@ namespace Kernel
 
 	InterruptState RecursiveSpinLock::lock()
 	{
-		auto state = Processor::get_interrupt_state();
+		const auto state = Processor::get_interrupt_state();
 		Processor::set_interrupt_state(InterruptState::Disabled);
 
-		auto id = Processor::current_id().as_u32();
+		const auto id = Processor::current_id().as_u32();
 
-		ProcessorID::value_type expected = PROCESSOR_NONE.as_u32();
+		if (m_locker.load(BAN::MemoryOrder::memory_order_relaxed) == id)
+		{
+			ASSERT(m_lock_depth > 0);
+			m_lock_depth++;
+			return state;
+		}
+
+#if SPINLOCK_TIMEOUTS
+		const auto start_ms = SystemTimer::is_initialized() ? SystemTimer::get().ms_since_boot() : 0;
+		bool printed { false };
+#endif
+
+		auto expected = PROCESSOR_NONE.as_u32();
 		while (!m_locker.compare_exchange(expected, id, BAN::MemoryOrder::memory_order_acquire))
 		{
-			if (expected == id)
-				break;
+#if SPINLOCK_TIMEOUTS
+			if (!printed && SystemTimer::get().ms_since_boot() >= start_ms + 1000)
+			{
+				SpinLockGuard _(Debug::s_debug_lock);
+				dwarnln("CPU {}: stuck in RecursiveSpinLock::lock", id);
+				Debug::dump_stack_trace();
+				printed = true;
+			}
+#endif
 			Processor::pause();
 			expected = PROCESSOR_NONE.as_u32();
 		}
 
-		m_lock_depth++;
+		ASSERT(m_lock_depth == 0);
+		m_lock_depth = 1;
 
 		if (Thread::current_tid())
 			Thread::current().add_spinlock();
@@ -95,14 +135,20 @@ namespace Kernel
 	{
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 
-		auto id = Processor::current_id().as_u32();
+		const auto id = Processor::current_id().as_u32();
+		if (m_locker.load(BAN::MemoryOrder::memory_order_relaxed) == id)
+		{
+			ASSERT(m_lock_depth > 0);
+			m_lock_depth++;
+			return true;
+		}
 
-		ProcessorID::value_type expected = PROCESSOR_NONE.as_u32();
+		auto expected = PROCESSOR_NONE.as_u32();
 		if (!m_locker.compare_exchange(expected, id, BAN::MemoryOrder::memory_order_acquire))
-			if (expected != id)
-				return false;
+			return false;
 
-		m_lock_depth++;
+		ASSERT(m_lock_depth == 0);
+		m_lock_depth = 1;
 
 		if (Thread::current_tid())
 			Thread::current().add_spinlock();
@@ -115,10 +161,15 @@ namespace Kernel
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 		ASSERT(current_processor_has_lock());
 		ASSERT(m_lock_depth > 0);
-		if (--m_lock_depth == 0)
-			m_locker.store(PROCESSOR_NONE.as_u32(), BAN::MemoryOrder::memory_order_release);
+
+		m_lock_depth--;
+		if (m_lock_depth > 0)
+			return;
+		m_locker.store(PROCESSOR_NONE.as_u32(), BAN::MemoryOrder::memory_order_release);
+
 		if (Thread::current_tid())
 			Thread::current().remove_spinlock();
+
 		if (state != InterruptState::Disabled)
 			Processor::set_interrupt_state(state);
 	}
