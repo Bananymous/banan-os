@@ -9,6 +9,7 @@
 #include <BAN/Vector.h>
 
 #include <arpa/inet.h>
+#include <ctype.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -134,6 +135,78 @@ struct DNSResponse
 	BAN::Vector<NameEntryPair> entries;
 };
 
+const BAN::Vector<sockaddr_in>& get_nameservers()
+{
+	static BAN::Vector<sockaddr_in> s_cached_nameservers;
+	static timespec s_cached_mtim {};
+
+	struct stat st {};
+	if (stat("/etc/resolv.conf", &st) == -1)
+	{
+		s_cached_mtim = {};
+		goto fallback_nameservers;
+	}
+
+	if (s_cached_mtim.tv_sec == st.st_mtim.tv_sec && s_cached_mtim.tv_nsec == st.st_mtim.tv_nsec)
+		return s_cached_nameservers;
+
+	s_cached_mtim = st.st_mtim;
+	s_cached_nameservers.clear();
+
+	FILE* fp;
+	if (!(fp = fopen("/etc/resolv.conf", "r")))
+		goto fallback_nameservers;
+
+	char buffer[512];
+	while (fgets(buffer, sizeof(buffer), fp))
+	{
+		char* ptr = buffer;
+		if (strncmp(ptr, "nameserver", 10) != 0)
+			continue;
+		ptr += 10;
+
+		while (isspace(*ptr))
+			ptr++;
+
+		*strchrnul(ptr, '\n') = '\0';
+
+		in_addr in_addr;
+		if (inet_aton(ptr, &in_addr) == 0)
+			continue;
+
+		MUST(s_cached_nameservers.push_back({
+			.sin_family = AF_INET,
+			.sin_port = htons(53),
+			.sin_addr = in_addr,
+			.sin_zero = {},
+		}));
+	}
+
+	fclose(fp);
+
+	if (!s_cached_nameservers.empty())
+		return s_cached_nameservers;
+
+fallback_nameservers:
+	constexpr const char* fallback_nameservers[] {
+		"1.1.1.1",
+		"1.0.0.1",
+	};
+
+	s_cached_nameservers.clear();
+	for (const char* nameserver : fallback_nameservers)
+	{
+		MUST(s_cached_nameservers.push_back({
+			.sin_family = AF_INET,
+			.sin_port = htons(53),
+			.sin_addr = { .s_addr = inet_addr(nameserver) },
+			.sin_zero = {},
+		}));
+	}
+
+	return s_cached_nameservers;
+}
+
 bool send_dns_query(int socket, BAN::StringView domain, uint16_t id)
 {
 	uint8_t buffer[4096] {};
@@ -158,17 +231,13 @@ bool send_dns_query(int socket, BAN::StringView domain, uint16_t id)
 	*(uint16_t*)&request.data[idx] = htons(QTYPE::A); idx += 2;
 	*(uint16_t*)&request.data[idx] = htons(0x0001); idx += 2;
 
-	sockaddr_in nameserver;
-	nameserver.sin_family = AF_INET;
-	nameserver.sin_port = htons(53);
-	nameserver.sin_addr.s_addr = inet_addr("8.8.8.8");
-	if (sendto(socket, &request, sizeof(DNSPacket) + idx, 0, (sockaddr*)&nameserver, sizeof(nameserver)) == -1)
-	{
-		dprintln("sendto: {}", strerror(errno));
-		return false;
-	}
+	const auto& nameservers = get_nameservers();
+	for (const auto& nameserver : nameservers)
+		if (sendto(socket, &request, sizeof(DNSPacket) + idx, 0, reinterpret_cast<const sockaddr*>(&nameserver), sizeof(nameserver)) != -1)
+			return true;
 
-	return true;
+	dwarnln("no reachable nameservers");
+	return false;
 }
 
 BAN::Optional<DNSResponse> read_dns_response(int socket)
