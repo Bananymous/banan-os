@@ -13,6 +13,7 @@ set(USERSPACE_TESTS
 	test-tcp
 	test-tls
 	test-udp
+	test-uinput
 	test-unix-socket
 	test-window
 )

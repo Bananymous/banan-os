@@ -35,10 +35,12 @@ namespace Kernel
 	private:
 		BAN::ErrorOr<size_t> read_non_block(BAN::ByteSpan);
 
+	protected:
+		const Type m_type;
+		const size_t m_event_size;
+
 	private:
 		BAN::String m_name;
-
-		const Type m_type;
 
 		mutable SpinLock m_event_lock;
 		ThreadBlocker m_event_thread_blocker;
@@ -46,7 +48,6 @@ namespace Kernel
 		static constexpr size_t m_max_event_count { 128 };
 
 		BAN::Vector<uint8_t> m_event_buffer;
-		const size_t m_event_size;
 		size_t m_event_tail { 0 };
 		size_t m_event_head { 0 };
 		size_t m_event_count { 0 };

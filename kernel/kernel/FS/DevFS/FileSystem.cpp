@@ -7,6 +7,7 @@
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/TmpFS/Inode.h>
 #include <kernel/Input/InputDevice.h>
+#include <kernel/Input/UInput.h>
 #include <kernel/Lock/BlockableSpinLock.h>
 #include <kernel/Lock/LockGuard.h>
 #include <kernel/Process.h>
@@ -30,6 +31,7 @@ namespace Kernel
 		s_instance->add_device(MUST(NullDevice::create(0666, 0, 0)));
 		s_instance->add_device(MUST(RandomDevice::create(0666, 0, 0)));
 		s_instance->add_device(MUST(ZeroDevice::create(0666, 0, 0)));
+		s_instance->add_device(MUST(UInputControl::create(0660, 0, 0)));
 		s_instance->add_device(MUST(KeyboardDevice::create(0440, 0, 901)));
 		s_instance->add_device(MUST(MouseDevice::create(0440, 0, 901)));
 

@@ -48,6 +48,7 @@ set(KERNEL_SOURCES
 	kernel/Input/PS2/Keyboard.cpp
 	kernel/Input/PS2/Keymap.cpp
 	kernel/Input/PS2/Mouse.cpp
+	kernel/Input/UInput.cpp
 	kernel/Interruptable.cpp
 	kernel/InterruptController.cpp
 	kernel/kernel.cpp
