@@ -644,7 +644,7 @@ static bool load_program_header(const Elf_Phdr& program_header, int fd, bool has
 			reinterpret_cast<void*>(program_header.p_vaddr),
 			file_backed_size,
 			prot | (has_textrel ? PROT_WRITE : 0),
-			MAP_PRIVATE | MAP_FIXED_NOREPLACE,
+			MAP_PRIVATE | MAP_FIXED,
 			fd,
 			program_header.p_offset
 		);
@@ -661,7 +661,7 @@ static bool load_program_header(const Elf_Phdr& program_header, int fd, bool has
 			reinterpret_cast<void*>(mmap_addr),
 			mmap_length,
 			prot | PROT_WRITE,
-			MAP_ANONYMOUS | MAP_PRIVATE | MAP_FIXED_NOREPLACE,
+			MAP_ANONYMOUS | MAP_PRIVATE | MAP_FIXED,
 			-1,
 			0
 		);
@@ -685,19 +685,16 @@ static bool load_program_header(const Elf_Phdr& program_header, int fd, bool has
 	return true;
 }
 
-static bool can_load_object(BAN::Span<const Elf_Phdr> program_headers, uintptr_t base)
+static bool reserve_virtual_space(BAN::Span<const Elf_Phdr> program_headers, uintptr_t base)
 {
-	// FIXME: This does not guarantee the mapping succeeds after this does.
-	//        Another thread could be doing mmaps that end up overlapping.
-
-	for (const auto& program_header : program_headers)
+	for (size_t i = 0; i < program_headers.size(); i++)
 	{
-		if (program_header.p_type != PT_LOAD)
+		if (program_headers[i].p_type != PT_LOAD)
 			continue;
 
-		const uintptr_t absolute_addr = program_header.p_vaddr + base;
+		const uintptr_t absolute_addr = program_headers[i].p_vaddr + base;
 		const uintptr_t mmap_addr = absolute_addr & ~(uintptr_t)0xFFF;
-		const size_t mmap_length = (absolute_addr - mmap_addr) + program_header.p_memsz;
+		const size_t mmap_length = (absolute_addr - mmap_addr) + program_headers[i].p_memsz;
 
 		void* mmap_ret = mmap(
 			reinterpret_cast<void*>(mmap_addr),
@@ -707,10 +704,14 @@ static bool can_load_object(BAN::Span<const Elf_Phdr> program_headers, uintptr_t
 			-1,
 			0
 		);
-		if (mmap_ret == MAP_FAILED)
-			return false;
 
-		munmap(mmap_ret, mmap_length);
+		if (mmap_ret == MAP_FAILED)
+		{
+			for (size_t j = 0; j < i; j++)
+				if (program_headers[j].p_type == PT_LOAD)
+					munmap(reinterpret_cast<void*>(program_headers[j].p_vaddr + base), program_headers[j].p_memsz);
+			return false;
+		}
 	}
 
 	return true;
@@ -875,7 +876,7 @@ static BAN::RefPtr<LoadedObject> load_object(char* full_path, int fd, bool load_
 	if (file_header.e_type == ET_EXEC)
 	{
 		base_address = 0;
-		if (!can_load_object(program_headers.span(), base_address))
+		if (!reserve_virtual_space(program_headers.span(), base_address))
 			return {};
 	}
 	else if (file_header.e_type == ET_DYN)
@@ -893,7 +894,7 @@ static BAN::RefPtr<LoadedObject> load_object(char* full_path, int fd, bool load_
 #else
 		#error "unsupported architecture"
 #endif
-		} while (base_address < 0x100000 || !can_load_object(program_headers.span(), base_address));
+		} while (base_address < 0x100000 || !reserve_virtual_space(program_headers.span(), base_address));
 	}
 	else
 	{
