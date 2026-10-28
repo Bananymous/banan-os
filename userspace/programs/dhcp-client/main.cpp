@@ -3,6 +3,8 @@
 #include <BAN/IPv4.h>
 #include <BAN/MAC.h>
 #include <BAN/Optional.h>
+#include <BAN/String.h>
+#include <BAN/StringView.h>
 #include <BAN/Vector.h>
 
 #include <arpa/inet.h>
@@ -344,6 +346,7 @@ int main()
 	dprintln("  IP     {}", dhcp_offer->address);
 	dprintln("  SUBNET {}", dhcp_offer->subnet);
 	dprintln("  SERVER {}", dhcp_offer->server);
+	dprintln("  DNS    {}", dhcp_offer->dns);
 #endif
 
 	send_dhcp_request(socket, mac_address, dhcp_offer->address, dhcp_offer->server);
@@ -380,6 +383,29 @@ int main()
 	update_ipv4_info(socket, dhcp_ack->address, dhcp_ack->subnet, gateway);
 
 	close(socket);
+
+	if (const int fd = open("/etc/resolv.conf", O_TRUNC | O_CREAT | O_WRONLY, 0644); fd == -1)
+		perror("open /etc/resolv.conf");
+	else
+	{
+		auto dns_servers = BAN::move(dhcp_offer->dns);
+
+		// fallback to cloudflare's DNS servers if DHCP did not give one
+		if (dns_servers.empty())
+		{
+			MUST(dns_servers.emplace_back(0x01'01'01'01));
+			MUST(dns_servers.emplace_back(0x01'00'00'01));
+		}
+
+		for (const auto& dns_server : dns_servers)
+		{
+			const auto data = MUST(BAN::String::formatted("nameserver {}\n", dns_server));
+			if (write(fd, data.data(), data.size()) == -1)
+				perror("write /etc/resolv.conf");
+		}
+
+		close(fd);
+	}
 
 	return 0;
 }
