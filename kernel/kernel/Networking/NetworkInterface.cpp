@@ -3,8 +3,10 @@
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Networking/NetworkInterface.h>
 
-#include <netinet/in.h>
+#include <net/if_arp.h>
 #include <net/if.h>
+#include <netinet/if_ether.h>
+#include <netinet/in.h>
 #include <sys/sysmacros.h>
 #include <string.h>
 
@@ -107,9 +109,21 @@ namespace Kernel
 			}
 			case SIOCGIFHWADDR:
 			{
-				auto mac_address = get_mac_address();
-				ifreq->ifr_ifru.ifru_hwaddr.sa_family = AF_INET;
-				memcpy(ifreq->ifr_ifru.ifru_hwaddr.sa_data, &mac_address, sizeof(mac_address));
+				switch (m_type)
+				{
+					case Type::Loopback:
+						ifreq->ifr_ifru.ifru_hwaddr.sa_family = ARPHRD_LOOPBACK;
+						break;
+					case Type::Ethernet:
+					{
+						const auto mac_address = get_mac_address();
+						ifreq->ifr_ifru.ifru_hwaddr.sa_family = ARPHRD_ETHER;
+						memcpy(ifreq->ifr_ifru.ifru_hwaddr.sa_data, &mac_address, sizeof(mac_address));
+						break;
+					}
+					default:
+						return BAN::Error::from_errno(ENODEV);
+				}
 				return 0;
 			}
 			case SIOCGIFNAME:
