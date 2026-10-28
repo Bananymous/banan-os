@@ -163,6 +163,16 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> sync_inode(SyncType) = 0;
 		virtual BAN::ErrorOr<void> sync_data() = 0;
 
+	private:
+		enum TimestampType : uint8_t
+		{
+			ATIME = 1 << 0,
+			MTIME = 1 << 1,
+			CTIME = 1 << 2,
+		};;
+
+		void update_timestamp(uint8_t);
+
 	protected:
 		// Directory API
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode_impl(BAN::StringView)							{ return BAN::Error::from_errno(ENOTSUP); }

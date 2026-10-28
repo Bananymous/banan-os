@@ -3,6 +3,7 @@
 #include <kernel/FS/Inode.h>
 #include <kernel/Lock/LockGuard.h>
 #include <kernel/Memory/FileBackedRegion.h>
+#include <kernel/Timer/Timer.h>
 
 #include <fcntl.h>
 #include <sys/ioctl.h>
@@ -66,6 +67,16 @@ namespace Kernel
 		return can_access(uid(), gid(), mode().mode, credentials, flags);
 	}
 
+	void Inode::update_timestamp(uint8_t update)
+	{
+		const auto timestamp = SystemTimer::get().real_time();
+		if (update & ATIME) m_atime = timestamp;
+		if (update & MTIME) m_mtime = timestamp;
+		if (update & CTIME) m_ctime = timestamp;
+		if (auto ret = sync_inode(SyncType::Times); ret.is_error())
+			dwarnln("sync timestamp: {}", ret.error());
+	}
+
 	BAN::ErrorOr<BAN::RefPtr<Inode>> Inode::find_inode(BAN::StringView name)
 	{
 		if (!mode().ifdir())
@@ -77,7 +88,9 @@ namespace Kernel
 	{
 		if (!mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
-		return list_next_inodes_impl(offset, list, list_len);
+		const auto ret = TRY(list_next_inodes_impl(offset, list, list_len));
+		update_timestamp(ATIME);
+		return ret;
 	}
 
 	BAN::ErrorOr<void> Inode::create_file(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
@@ -88,7 +101,9 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
 			return BAN::Error::from_errno(EROFS);
-		return create_file_impl(name, mode, uid, gid);
+		TRY(create_file_impl(name, mode, uid, gid));
+		update_timestamp(MTIME | CTIME);
+		return {};
 	}
 
 	BAN::ErrorOr<void> Inode::create_directory(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
@@ -99,7 +114,9 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
 			return BAN::Error::from_errno(EROFS);
-		return create_directory_impl(name, mode, uid, gid);
+		TRY(create_directory_impl(name, mode, uid, gid));
+		update_timestamp(MTIME | CTIME);
+		return {};
 	}
 
 	BAN::ErrorOr<void> Inode::link_inode(BAN::StringView name, BAN::RefPtr<Inode> inode)
@@ -112,7 +129,9 @@ namespace Kernel
 			return BAN::Error::from_errno(EXDEV);
 		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
 			return BAN::Error::from_errno(EROFS);
-		return link_inode_impl(name, inode);
+		TRY(link_inode_impl(name, inode));
+		update_timestamp(MTIME | CTIME);
+		return {};
 	}
 
 	BAN::ErrorOr<void> Inode::rename_inode(BAN::RefPtr<Inode> old_parent, BAN::StringView old_name, BAN::StringView new_name)
@@ -125,7 +144,9 @@ namespace Kernel
 			return BAN::Error::from_errno(EXDEV);
 		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
 			return BAN::Error::from_errno(EROFS);
-		return rename_inode_impl(old_parent, old_name, new_name);
+		TRY(rename_inode_impl(old_parent, old_name, new_name));
+		update_timestamp(CTIME);
+		return {};
 	}
 
 	BAN::ErrorOr<void> Inode::unlink(BAN::StringView name)
@@ -136,14 +157,18 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
 			return BAN::Error::from_errno(EROFS);
-		return unlink_impl(name);
+		TRY(unlink_impl(name));
+		update_timestamp(MTIME | CTIME);
+		return {};
 	}
 
 	BAN::ErrorOr<BAN::String> Inode::link_target()
 	{
 		if (!mode().iflnk())
 			return BAN::Error::from_errno(EINVAL);
-		return link_target_impl();
+		const auto ret = TRY(link_target_impl());
+		update_timestamp(ATIME);
+		return ret;
 	}
 
 	BAN::ErrorOr<void> Inode::set_link_target(BAN::StringView target)
@@ -152,7 +177,9 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
 			return BAN::Error::from_errno(EROFS);
-		return set_link_target_impl(target);
+		TRY(set_link_target_impl(target));
+		update_timestamp(MTIME);
+		return {};
 	}
 
 	BAN::ErrorOr<long> Inode::accept(sockaddr* address, socklen_t* address_len, int flags)
@@ -229,7 +256,9 @@ namespace Kernel
 	{
 		if (mode().ifdir())
 			return BAN::Error::from_errno(EISDIR);
-		return read_impl(offset, buffer);
+		const auto ret = TRY(read_impl(offset, buffer));
+		update_timestamp(ATIME);
+		return ret;
 	}
 
 	BAN::ErrorOr<size_t> Inode::write(off_t offset, BAN::ConstByteSpan buffer)
@@ -238,7 +267,9 @@ namespace Kernel
 			return BAN::Error::from_errno(EISDIR);
 		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
 			return BAN::Error::from_errno(EROFS);
-		return write_impl(offset, buffer);
+		const auto ret = TRY(write_impl(offset, buffer));
+		update_timestamp(MTIME | CTIME);
+		return ret;
 	}
 
 	BAN::ErrorOr<void> Inode::truncate(size_t size)
@@ -247,7 +278,9 @@ namespace Kernel
 			return BAN::Error::from_errno(EISDIR);
 		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
 			return BAN::Error::from_errno(EROFS);
-		return truncate_impl(size);
+		TRY(truncate_impl(size));
+		update_timestamp(MTIME | CTIME);
+		return {};
 	}
 
 	BAN::ErrorOr<void> Inode::chmod(mode_t mode)
@@ -259,12 +292,13 @@ namespace Kernel
 		mode |= m_mode & Inode::Mode::TYPE_MASK;
 
 		const auto old_mode = m_mode.exchange(mode);
-
 		if (auto ret = sync_inode(SyncType::Mode); ret.is_error())
 		{
 			m_mode.compare_exchange(mode, old_mode);
 			return ret.release_error();
 		}
+
+		update_timestamp(CTIME);
 
 		return {};
 	}
@@ -279,13 +313,14 @@ namespace Kernel
 
 		const auto old_uid = m_uid.exchange(uid);
 		const auto old_gid = m_gid.exchange(gid);
-
 		if (auto ret = sync_inode(SyncType::UidGid); ret.is_error())
 		{
 			m_uid.compare_exchange(uid, old_uid);
 			m_gid.compare_exchange(gid, old_gid);
 			return ret.release_error();
 		}
+
+		update_timestamp(CTIME);
 
 		return {};
 	}
