@@ -107,7 +107,7 @@ static Node* compile_primary(BAN::Span<const Token>& tokens)
 		if (*endp != '\0')
 			print_error_and_exit("invalid perm '%s'\n", string);
 
-		return hyphen ? value | 017777 : value &  07777;
+		return (value & 07777) | (hyphen ? 010000 : 0);
 	};
 
 	const auto parse_type = [](const char* string) {
@@ -397,7 +397,7 @@ bool evaluate_node(Node* node, const char* path, struct stat& st)
 		case Node::Type::NOD_GROUP:
 			return node->as.gid == st.st_gid;
 		case Node::Type::NOD_PERM:
-			if (const mode_t mode = node->as.mode & 07777; mode < node->as.mode)
+			if (const mode_t mode = node->as.mode & 07777; node->as.mode & 010000)
 				return (mode & st.st_mode) == mode;
 			return node->as.mode == (st.st_mode & 07777);
 		case Node::Type::NOD_LINKS:
