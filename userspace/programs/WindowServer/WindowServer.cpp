@@ -1098,11 +1098,7 @@ void WindowServer::invalidate(Rectangle area)
 
 		if (!m_is_mouse_relative)
 		{
-			auto cursor_area = this->cursor_area();
-			cursor_area.min_x -= m_focused_window->client_x();
-			cursor_area.max_x -= m_focused_window->client_x();
-			cursor_area.min_y -= m_focused_window->client_y();
-			cursor_area.max_y -= m_focused_window->client_y();
+			const auto cursor_area = this->cursor_area();
 			if (!area.get_overlap(cursor_area).has_value())
 				return;
 
@@ -1666,12 +1662,21 @@ Rectangle WindowServer::cursor_area() const
 	{
 		if (!window->get_attributes().cursor_visible)
 			width = height = 0;
-		else if (window->has_cursor())
+		else
 		{
-			width = window->cursor().width;
-			height = window->cursor().height;
-			origin_x = window->cursor().origin_x;
-			origin_y = window->cursor().origin_y;
+			if (window->has_cursor())
+			{
+				width = window->cursor().width;
+				height = window->cursor().height;
+				origin_x = window->cursor().origin_x;
+				origin_y = window->cursor().origin_y;
+			}
+
+			if (m_state == State::Fullscreen)
+			{
+				origin_x += window->client_x();
+				origin_y += window->client_y();
+			}
 		}
 	}
 
@@ -1732,6 +1737,8 @@ BAN::RefPtr<Window> WindowServer::find_window_with_fd(int fd) const
 
 BAN::RefPtr<Window> WindowServer::find_hovered_window() const
 {
+	if (m_state == State::Fullscreen)
+		return m_focused_window;
 	for (size_t i = m_client_windows.size(); i > 0; i--)
 		if (auto window = m_client_windows[i - 1]; window->client_area().contains(m_cursor))
 			return window;
