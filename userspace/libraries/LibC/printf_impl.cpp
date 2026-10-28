@@ -589,11 +589,7 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 			{
 				string = va_arg(arguments, const char*);
 				if (options.percision != -1)
-				{
-					length = 0;
-					while (string[length] && length < options.percision)
-						length++;
-				}
+					length = strnlen(string, options.percision);
 				format++;
 				break;
 			}
@@ -635,7 +631,7 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 				if (options.alternate_form)
 					string = strerrorname_np(errno);
 				else
-					string = strerror(errno);
+					string = strerrordesc_np(errno);
 				format++;
 				break;
 			}
