@@ -37,6 +37,11 @@ signal_trampoline:
 	movl 64(%esp), %edi // signal number
 	movl 60(%esp), %eax // handlers
 
+	// add stack trace
+	movl 116(%esp), %ecx
+	pushl   (%ecx)
+	pushl 36(%esp)
+
 	// align stack to 16 bytes
 	movl %esp, %ebp
 	andl $-16, %esp

@@ -44,6 +44,11 @@ signal_trampoline:
 	movq 184(%rsp), %rdi // signal number
 	movq 176(%rsp), %rax // handler
 
+	// add stack trace
+	movq 264(%rsp), %rcx
+	pushq   (%rcx)
+	pushq 64(%rsp)
+
 	// align stack to 16 bytes
 	movq %rsp, %rbp
 	andq $-16, %rsp
@@ -58,7 +63,7 @@ signal_trampoline:
 
 	// restore stack
 	movq %rbp, %rsp
-	addq $40, %rsp
+	addq $56, %rsp
 
 	// restore sigmask
 	movq $79, %rdi       // SYS_SIGPROCMASK
