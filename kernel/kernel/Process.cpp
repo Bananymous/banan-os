@@ -126,6 +126,13 @@ namespace Kernel
 			TRY(process->m_mapped_regions.push_back(BAN::move(region)));
 		executable.regions.clear();
 
+		{
+			const auto& last_region = *process->m_mapped_regions.back();
+			process->m_vma_bump_reset = last_region.vaddr() + last_region.size();
+			if (const auto rem = process->m_vma_bump_reset % PAGE_SIZE)
+				process->m_vma_bump_reset += PAGE_SIZE - rem;
+		}
+
 		TRY(process->m_executable.append(executable_file.canonical_path));
 
 		if (executable_inode->mode().mode & +Inode::Mode::ISUID)
@@ -615,13 +622,13 @@ namespace Kernel
 
 	BAN::ErrorOr<AddressRange> Process::find_free_address_range(size_t size)
 	{
-		if (auto rem = size % PAGE_SIZE)
+		if (const auto rem = size % PAGE_SIZE)
 			size += PAGE_SIZE - rem;
 
-		const bool can_retry = !!m_vma_bump_base;
+		const bool can_retry = (m_vma_bump_base > 0);
 
 		if (m_vma_bump_base == 0)
-			m_vma_bump_base = m_shared_page_vaddr + PAGE_SIZE;
+			m_vma_bump_base = m_vma_bump_reset;
 
 		for (size_t i = find_mapped_region(m_vma_bump_base); m_vma_bump_base < USERSPACE_END;)
 		{
@@ -922,6 +929,8 @@ namespace Kernel
 		forked->m_executable           = BAN::move(executable);
 		forked->m_mapped_regions       = BAN::move(mapped_regions);
 		forked->m_shared_page_vaddr    = m_shared_page_vaddr;
+		forked->m_vma_bump_base        = m_vma_bump_base;
+		forked->m_vma_bump_reset       = m_vma_bump_reset;
 		forked->m_has_called_exec      = false;
 		memcpy(forked->m_signal_handlers, m_signal_handlers, sizeof(m_signal_handlers));
 
@@ -986,6 +995,11 @@ namespace Kernel
 
 			BAN::String executable_path;
 			TRY(executable_path.append(executable_file.canonical_path));
+
+			const vaddr_t vma_bump_reset = ({
+				const auto& last_region = *new_mapped_regions.back();
+				(last_region.vaddr() + last_region.size() + PAGE_SIZE - 1) & PAGE_ADDR_MASK;
+			});
 
 			const vaddr_t shared_page_vaddr = new_page_table->reserve_free_page(executable.interp_base.value_or(0x400000), USERSPACE_END);
 			if (shared_page_vaddr == 0)
@@ -1142,6 +1156,9 @@ namespace Kernel
 			m_page_table = BAN::move(new_page_table);
 
 			m_shared_page_vaddr = shared_page_vaddr;
+
+			m_vma_bump_base  = 0;
+			m_vma_bump_reset = vma_bump_reset;
 
 			execfd_guard.disable();
 

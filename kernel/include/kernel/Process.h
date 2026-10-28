@@ -345,7 +345,8 @@ namespace Kernel
 
 		mutable RWLock m_memory_region_lock;
 		BAN::Vector<BAN::UniqPtr<MemoryRegion>> m_mapped_regions;
-		vaddr_t m_vma_bump_base { 0 };
+		vaddr_t m_vma_bump_base  { 0 };
+		vaddr_t m_vma_bump_reset { 0 };
 
 		Mutex m_pinned_range_lock;
 		ThreadBlocker m_pinned_range_blocker;
