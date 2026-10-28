@@ -307,8 +307,6 @@ namespace Kernel
 	void KeyboardDevice::notify()
 	{
 		epoll_notify(EPOLLIN);
-
-		SpinLockGuard _(s_keyboard_lock);
 		m_thread_blocker.unblock();
 	}
 
@@ -364,8 +362,6 @@ namespace Kernel
 	void MouseDevice::notify()
 	{
 		epoll_notify(EPOLLIN);
-
-		SpinLockGuard _(s_mouse_lock);
 		m_thread_blocker.unblock();
 	}
 
