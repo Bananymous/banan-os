@@ -818,21 +818,23 @@ Rectangle Terminal::handle_csi(char ch)
 			break;
 		case 'J':
 		{
+			m_csi_info.fields[0] = BAN::Math::max(m_csi_info.fields[0], 0);
+
+			const uint32_t s_idx = (m_csi_info.fields[0] == 0) ? m_cursor.y * cols() + m_cursor.x : 0;
+			const uint32_t e_idx = (m_csi_info.fields[0] == 1) ? m_cursor.y * cols() + m_cursor.x : cols() * rows() - 1;
+			for (size_t i = s_idx; i <= e_idx; i++)
+				m_cells[i] = {
+					.codepoint = 0,
+					.fg_color = fg_color,
+					.bg_color = bg_color,
+					.bold = false,
+				};
+
 			Rectangle rects[2];
 			size_t rect_count = 0;
 
-			if (m_csi_info.fields[0] == -1 || m_csi_info.fields[0] == 0)
+			if (m_csi_info.fields[0] == 0)
 			{
-				for (size_t i = m_cursor.y * cols() + m_cursor.x; i < m_cells.size(); i++)
-				{
-					m_cells[i] = {
-						.codepoint = 0,
-						.fg_color = fg_color,
-						.bg_color = bg_color,
-						.bold = m_is_bold,
-					};
-				}
-
 				rects[0].x      = m_cursor.x * m_font.width();
 				rects[0].y      = m_cursor.y * m_font.height();
 				rects[0].width  = m_window->width() - rects[0].x;
@@ -847,16 +849,6 @@ Rectangle Terminal::handle_csi(char ch)
 			}
 			else if (m_csi_info.fields[0] == 1)
 			{
-				for (size_t i = 0; i < m_cursor.y * cols() + m_cursor.x; i++)
-				{
-					m_cells[i] = {
-						.codepoint = 0,
-						.fg_color = fg_color,
-						.bg_color = bg_color,
-						.bold = m_is_bold,
-					};
-				}
-
 				rects[0].x      = 0;
 				rects[0].y      = m_cursor.y * m_font.height();
 				rects[0].width  = m_cursor.x * m_font.width();
@@ -871,16 +863,6 @@ Rectangle Terminal::handle_csi(char ch)
 			}
 			else
 			{
-				for (size_t i = 0; i < m_cells.size(); i++)
-				{
-					m_cells[i] = {
-						.codepoint = 0,
-						.fg_color = fg_color,
-						.bg_color = bg_color,
-						.bold = m_is_bold,
-					};
-				}
-
 				rects[0].x      = 0;
 				rects[0].y      = 0;
 				rects[0].width  = m_window->width();
@@ -908,7 +890,7 @@ Rectangle Terminal::handle_csi(char ch)
 					.codepoint = 0,
 					.fg_color = fg_color,
 					.bg_color = bg_color,
-					.bold = m_is_bold,
+					.bold = false,
 				};
 
 			Rectangle rect;
@@ -934,10 +916,10 @@ Rectangle Terminal::handle_csi(char ch)
 			for (size_t row = m_cursor.y; row < m_cursor.y + count; row++)
 				for (size_t col = 0; col < cols(); col++)
 					m_cells[row * cols() + col] = {
-						.codepoint = ' ',
+						.codepoint = 0,
 						.fg_color = fg_color,
 						.bg_color = bg_color,
-						.bold = m_is_bold,
+						.bold = false,
 					};
 
 			texture.copy_horizontal_slice(dst_y, src_y, m_window->height() - dst_y);
@@ -963,10 +945,10 @@ Rectangle Terminal::handle_csi(char ch)
 			for (size_t row = m_cursor.y + count; row < rows(); row++)
 				for (size_t col = 0; col < cols(); col++)
 					m_cells[row * cols() + col] = {
-						.codepoint = ' ',
+						.codepoint = 0,
 						.fg_color = fg_color,
 						.bg_color = bg_color,
-						.bold = m_is_bold,
+						.bold = false,
 					};
 
 			texture.copy_horizontal_slice(dst_y, src_y, m_window->height() - dst_y);
@@ -991,10 +973,10 @@ Rectangle Terminal::handle_csi(char ch)
 				m_cells[m_cursor.y * cols() + i] = m_cells[m_cursor.y * cols() + i + count];
 			for (size_t i = m_cursor.x + count; i < cols(); i++)
 				m_cells[m_cursor.y * cols() + i] = {
-					.codepoint = ' ',
+					.codepoint = 0,
 					.fg_color = fg_color,
 					.bg_color = bg_color,
-					.bold = m_is_bold,
+					.bold = false,
 				};
 
 			texture.copy_rect(dst_x, y, src_x, y, m_window->width() - src_x, m_font.height());
@@ -1019,10 +1001,10 @@ Rectangle Terminal::handle_csi(char ch)
 				m_cells[m_cursor.y * cols() + i + count] = m_cells[m_cursor.y * cols() + i];
 			for (size_t i = m_cursor.x; i < m_cursor.x + count; i++)
 				m_cells[m_cursor.y * cols() + i] = {
-					.codepoint = ' ',
+					.codepoint = 0,
 					.fg_color = fg_color,
 					.bg_color = bg_color,
-					.bold = m_is_bold,
+					.bold = false,
 				};
 
 			texture.copy_rect(dst_x, y, src_x, y, m_window->width() - dst_x, m_font.height());
