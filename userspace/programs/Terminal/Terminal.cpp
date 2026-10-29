@@ -131,6 +131,13 @@ void Terminal::start_shell()
 
 static volatile bool s_shell_exited = false;
 
+static uint64_t get_current_ms()
+{
+	timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return ts.tv_sec * 1'000 + ts.tv_nsec / 1'000'000;
+}
+
 void Terminal::run()
 {
 	signal(SIGCHLD, [](int) { s_shell_exited = true; });
@@ -180,12 +187,8 @@ void Terminal::run()
 			perror("tcsetwinsize");
 	}
 
-	{
-		timespec ts;
-		clock_gettime(CLOCK_MONOTONIC, &ts);
-		m_cursor_blink_ms = ts.tv_sec * 1'000 + ts.tv_nsec / 1'000'000;
-		m_cursor_blink_toggle = true;
-	}
+	m_cursor_blink_toggle = true;
+	m_cursor_blink_next_ms = get_current_ms() + m_cursor_blink_interval_ms;
 
 	show_cursor();
 
@@ -370,6 +373,19 @@ void Terminal::run()
 			perror("tcsetwinsize");
 	});
 
+	m_window->set_window_focus_event_callback([&](LibGUI::EventPacket::WindowFocusEvent::event_t event) {
+		if (event.focused)
+		{
+			m_cursor_blink_next_ms = get_current_ms() + m_cursor_blink_interval_ms;
+			m_cursor_blink_toggle = true;
+		}
+		else
+		{
+			m_cursor_blink_next_ms = UINT64_MAX;
+			m_cursor_blink_toggle = false;
+		}
+	});
+
 	m_window->set_key_event_callback([&](LibGUI::EventPacket::KeyEvent::event_t event) {
 		if (event.released())
 			return;
@@ -456,9 +472,7 @@ void Terminal::run()
 			}
 		}
 
-		timespec ts;
-		clock_gettime(CLOCK_MONOTONIC, &ts);
-		m_cursor_blink_ms = ts.tv_sec * 1'000 + ts.tv_nsec / 1'000'000;
+		m_cursor_blink_next_ms = get_current_ms() + m_cursor_blink_interval_ms;
 		m_cursor_blink_toggle = true;
 	});
 
@@ -525,32 +539,34 @@ void Terminal::run()
 		FD_SET(m_shell_info.pts_master, &fds);
 		FD_SET(m_window->server_fd(), &fds);
 
-		timespec ts;
-		clock_gettime(CLOCK_MONOTONIC, &ts);
-		const uint64_t current_ms = ts.tv_sec * 1'000 + ts.tv_nsec / 1'000'000;
+		const uint64_t current_ms = get_current_ms();
+		const uint64_t timeout_ms = m_cursor_blink_next_ms < current_ms ? m_cursor_blink_next_ms - current_ms : 0;
 
-		const uint64_t ms_until_blink = 500 - BAN::Math::min<uint64_t>(current_ms - m_cursor_blink_ms, 500);
-
-		timeval timeout;
-		timeout.tv_sec = ms_until_blink / 1'000;
-		timeout.tv_usec = ms_until_blink * 1'000;
-
+		timeval timeout {
+			.tv_sec  = static_cast<time_t>     (timeout_ms / 1000),
+			.tv_usec = static_cast<suseconds_t>(timeout_ms % 1000 * 1000),
+		};
 		const int nselect = select(max_fd + 1, &fds, nullptr, nullptr, &timeout);
 		if (nselect < 0)
 			continue;
-		if (nselect == 0)
+
+		if (get_current_ms() >= m_cursor_blink_next_ms)
 		{
-			m_cursor_blink_ms = current_ms + ms_until_blink;
+			m_cursor_blink_next_ms += m_cursor_blink_interval_ms;
 			m_cursor_blink_toggle = !m_cursor_blink_toggle;
 		}
 
-		hide_cursor();
+		const auto rect1 = hide_cursor();
 		if (FD_ISSET(m_shell_info.pts_master, &fds))
 			if (!read_shell())
 				break;
 		if (FD_ISSET(m_window->server_fd(), &fds))
 			m_window->poll_events();
-		show_cursor();
+		const auto rect2 = show_cursor();
+
+		const auto rect = rect1.get_bounding_box(rect2);
+		if (rect.width && rect.height)
+			m_window->invalidate(rect.x, rect.y, rect.width, rect.height);
 	}
 }
 
@@ -605,30 +621,29 @@ Rectangle Terminal::show_selection()
 	return invalidate;
 }
 
-void Terminal::hide_cursor()
+Rectangle Terminal::hide_cursor()
 {
 	if (m_cursor.x >= cols())
-		return;
+		return {};
 	if (m_cursor.y + m_visual_scroll >= rows())
-		return;
+		return {};
 
-	const auto rect = render_cell(
+	return render_cell(
 		m_cursor.x,
 		m_cursor.y + m_visual_scroll,
 		m_cells[m_cursor.y * cols() + m_cursor.x]
 	);
-	m_window->invalidate(rect.x, rect.y, rect.width, rect.height);
 }
 
-void Terminal::show_cursor()
+Rectangle Terminal::show_cursor()
 {
 	if (!m_cursor_shown || !m_cursor_blink_toggle)
-		return;
+		return {};
 
 	if (m_cursor.x >= cols())
-		return;
+		return {};
 	if (m_cursor.y + m_visual_scroll >= rows())
-		return;
+		return {};
 
 	const uint32_t y_offset = m_font.height() * 13 / 16;
 
@@ -639,7 +654,8 @@ void Terminal::show_cursor()
 	rect.height = m_font.height() - y_offset - 1;
 
 	m_window->texture().fill_rect(rect.x, rect.y, rect.width, rect.height, 0xFFFFFFFF);
-	m_window->invalidate(rect.x, rect.y, rect.width, rect.height);
+
+	return rect;
 }
 
 void Terminal::write_shell(BAN::StringView data)

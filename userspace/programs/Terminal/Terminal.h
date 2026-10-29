@@ -53,8 +53,8 @@ private:
 	BAN::Optional<uint32_t> get_8bit_color();
 	BAN::Optional<uint32_t> get_24bit_color();
 
-	void hide_cursor();
-	void show_cursor();
+	Rectangle hide_cursor();
+	Rectangle show_cursor();
 
 	void on_key_event(LibGUI::EventPacket::KeyEvent::event_t);
 
@@ -133,9 +133,10 @@ private:
 	bool m_is_selecting { false };
 	bool m_brackted_paste_mode { false };
 
-	bool m_cursor_shown { true };
+	static constexpr uint64_t m_cursor_blink_interval_ms { 500 };
+	uint64_t m_cursor_blink_next_ms { 0 };
 	bool m_cursor_blink_toggle { true };
-	uint64_t m_cursor_blink_ms { 0 };
+	bool m_cursor_shown { true };
 	Position m_cursor { 0, 0 };
 
 	uint8_t m_utf8_index { 0 };
