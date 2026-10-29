@@ -48,7 +48,7 @@ private:
 	Rectangle read_shell();
 	void write_shell(BAN::StringView data);
 
-	Rectangle show_selection();
+	void update_selection();
 
 	BAN::Optional<uint32_t> get_8bit_color();
 	BAN::Optional<uint32_t> get_24bit_color();
@@ -63,10 +63,10 @@ private:
 	Rectangle resize();
 
 	Rectangle render_cell(uint32_t x, uint32_t y, const Cell&);
-	Rectangle render_visual_scroll(bool skip_scrollback = false);
+	Rectangle render_visible_area(bool skip_scrollback = false);
 
 private:
-	struct Position
+	struct Cursor
 	{
 		uint32_t x;
 		uint32_t y;
@@ -103,8 +103,17 @@ private:
 
 	struct Selection
 	{
+		struct Position
+		{
+			int32_t x;
+			int32_t y;
+		};
+
 		Position start;
 		Position end;
+
+		int32_t min;
+		int32_t max;
 	};
 
 	struct ScrollbackLine
@@ -130,8 +139,7 @@ private:
 	BAN::UniqPtr<Scrollback> m_scrollback;
 	size_t m_visual_scroll { 0 };
 
-	BAN::Optional<Selection> m_cur_selection;
-	BAN::Optional<Selection> m_old_selection;
+	BAN::Optional<Selection> m_selection;
 	bool m_is_selecting { false };
 	bool m_brackted_paste_mode { false };
 
@@ -139,14 +147,14 @@ private:
 	uint64_t m_cursor_blink_next_ms { 0 };
 	bool m_cursor_blink_toggle { true };
 	bool m_cursor_shown { true };
-	Position m_cursor { 0, 0 };
+	Cursor m_cursor { 0, 0 };
 
 	uint8_t m_utf8_index { 0 };
 	uint8_t m_utf8_bytes[4] { };
 
 	uint32_t m_last_graphic_char { 0 };
 
-	Position m_saved_cursor { 0, 0 };
+	Cursor m_saved_cursor { 0, 0 };
 	uint32_t m_fg_color { 0 };
 	uint32_t m_bg_color { 0 };
 	bool m_colors_inverted { false };

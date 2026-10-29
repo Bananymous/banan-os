@@ -193,6 +193,9 @@ void Terminal::run()
 	Rectangle invalidate;
 
 	m_window->set_resize_window_event_callback([&] {
+		m_is_selecting = false;
+		m_selection = {};
+
 		invalidate = invalidate.get_bounding_box(resize());
 
 		const winsize winsize {
@@ -228,35 +231,49 @@ void Terminal::run()
 			{
 				case LibInput::Key::C:
 				{
-					if (!m_cur_selection.has_value())
+					if (!m_selection.has_value())
 						break;
 
-					const uint32_t selection_start = m_cur_selection->start.y * cols() + m_cur_selection->start.x;
-					const uint32_t selection_end   = m_cur_selection->  end.y * cols() + m_cur_selection->  end.x;
+					struct CellInfo { Cell cell; bool soft_wrap; };
+					const auto get_cell_info = [this](int32_t idx) -> CellInfo {
+						if (idx >= 0)
+							return { .cell = m_cells[idx], .soft_wrap = m_soft_wraps[idx / cols()] };
 
-					uint32_t selection_min = BAN::Math::min(selection_start, selection_end);
-					for (; selection_min < m_cells.size(); selection_min++)
-						if (m_cells[selection_min].codepoint != 0)
-							break;
+						idx = -idx - 1;
+						const auto& line = (*m_scrollback)[m_scrollback->size() - idx / cols() - 1];
+						return {
+							.cell      = line.cells[cols() - idx % cols() - 1],
+							.soft_wrap = line.soft_wrap,
+						};
+					};
 
-					uint32_t selection_max = BAN::Math::max(selection_start, selection_end);
-					for (; selection_max >= selection_min; selection_max--)
-						if (m_cells[selection_max].codepoint != 0)
-							break;
+					const auto is_cell_visible = [](const Cell& cell) {
+						return cell.codepoint != 0 || cell.bg_color != s_default_bg_color;
+					};
 
 					BAN::String buffer;
-					for (size_t i = selection_min; i <= selection_max; i++)
+					for (int32_t i = m_selection->min; i <= m_selection->max; i++)
 					{
-						if (i != selection_min && i % cols() == 0 && !m_soft_wraps[i / cols() - 1])
+						const auto [cell, soft_wrap] = get_cell_info(i);
+
+						if (is_cell_visible(cell))
+						{
+							for (int32_t j = i - 1; j >= m_selection->min && (j + 1) % static_cast<int32_t>(cols()); j--)
+							{
+								const auto [cell, _] = get_cell_info(j);
+								if (is_cell_visible(cell))
+									break;
+								MUST(buffer.push_back(' '));
+							}
+
+							char bytes[5];
+							const uint32_t codepoint = cell.codepoint ?: ' ';
+							BAN::UTF8::from_codepoints(&codepoint, 1, bytes);
+							MUST(buffer.append(bytes));
+						}
+
+						if (i != m_selection->max && (i + 1) % static_cast<int32_t>(cols()) == 0 && !soft_wrap)
 							MUST(buffer.push_back('\n'));
-
-						const auto cell = m_cells[i];
-						if (cell.codepoint == 0)
-							continue;
-
-						char bytes[5];
-						BAN::UTF8::from_codepoints(&cell.codepoint, 1, bytes);
-						MUST(buffer.append(bytes));
 					}
 
 					if (auto ret = LibClipboard::Clipboard::set_clipboard_text(buffer); ret.is_error())
@@ -266,14 +283,14 @@ void Terminal::run()
 				}
 				case LibInput::Key::V:
 				{
-					auto clipboard_or_error = LibClipboard::Clipboard::get_clipboard_text();
+					const auto clipboard_or_error = LibClipboard::Clipboard::get_clipboard_text();
 					if (clipboard_or_error.is_error())
 					{
 						dwarnln("Failed to get clipboard: {}", clipboard_or_error.error());
 						break;
 					}
 
-					auto clipboard = clipboard_or_error.release_value();
+					const auto& clipboard = clipboard_or_error.value();
 					if (!clipboard.empty())
 					{
 						if (m_brackted_paste_mode)
@@ -296,11 +313,22 @@ void Terminal::run()
 		{
 			write_shell(text);
 
+			bool needs_full_render = false;
+
+			if (m_selection.has_value())
+			{
+				m_selection = {};
+				needs_full_render = true;
+			}
+
 			if (m_visual_scroll != 0)
 			{
 				m_visual_scroll = 0;
-				invalidate = invalidate.get_bounding_box(render_visual_scroll());
+				needs_full_render = true;
 			}
+
+			if (needs_full_render)
+				invalidate = invalidate.get_bounding_box(render_visible_area());
 		}
 
 		m_cursor_blink_next_ms = get_current_ms() + m_cursor_blink_interval_ms;
@@ -308,38 +336,31 @@ void Terminal::run()
 	});
 
 	m_window->set_mouse_move_event_callback([&](LibGUI::EventPacket::MouseMoveEvent::event_t event) {
-		if (m_visual_scroll != 0)
-			return;
-
 		if (!m_is_selecting)
 			return;
-
-		m_cur_selection->end = {
-			.x = static_cast<uint32_t>(BAN::Math::clamp<int32_t>(event.x / static_cast<int32_t>(m_font.width()),  0, cols() - 1)),
-			.y = static_cast<uint32_t>(BAN::Math::clamp<int32_t>(event.y / static_cast<int32_t>(m_font.height()), 0, rows() - 1)),
+		m_selection->end = {
+			.x = BAN::Math::clamp<int32_t>(event.x / m_font.width(), 0, cols() - 1),
+			.y = BAN::Math::clamp<int32_t>(event.y / m_font.height() - m_visual_scroll, -m_scrollback->size(), rows() - 1),
 		};
-
-		invalidate = invalidate.get_bounding_box(show_selection());
+		update_selection();
+		invalidate = invalidate.get_bounding_box(render_visible_area());
 	});
 
 	m_window->set_mouse_button_event_callback([&](LibGUI::EventPacket::MouseButtonEvent::event_t event) {
-		if (m_visual_scroll != 0)
-			return;
-
 		switch (event.button)
 		{
 			case LibInput::MouseButton::Right:
 				if (!m_is_selecting)
-					m_cur_selection = {};
+					m_selection = {};
 				m_is_selecting = false;
 				break;
 			case LibInput::MouseButton::Left:
 				if (event.pressed)
 				{
-					m_cur_selection = Selection {};
-					m_cur_selection->start = m_cur_selection->end = {
-						.x = static_cast<uint32_t>(BAN::Math::clamp<int32_t>(event.x / static_cast<int32_t>(m_font.width()),  0, cols() - 1)),
-						.y = static_cast<uint32_t>(BAN::Math::clamp<int32_t>(event.y / static_cast<int32_t>(m_font.height()), 0, rows() - 1)),
+					m_selection = Selection {};
+					m_selection->start = m_selection->end = {
+						.x = BAN::Math::clamp<int32_t>(event.x / m_font.width(), 0, cols() - 1),
+						.y = BAN::Math::clamp<int32_t>(event.y / m_font.height() - m_visual_scroll, -m_scrollback->size(), rows() - 1),
 					};
 				}
 				m_is_selecting = event.pressed;
@@ -348,15 +369,13 @@ void Terminal::run()
 				return;
 		}
 
-		invalidate = invalidate.get_bounding_box(show_selection());
+		update_selection();
+		invalidate = invalidate.get_bounding_box(render_visible_area());
 	});
 
 	m_window->set_mouse_scroll_event_callback([&](LibGUI::EventPacket::MouseScrollEvent::event_t event) {
-		m_is_selecting = false;
-		m_cur_selection = {};
-
 		m_visual_scroll = BAN::Math::clamp<int32_t>(static_cast<int32_t>(m_visual_scroll) + event.scroll * 5, 0, m_scrollback->size());
-		invalidate = invalidate.get_bounding_box(render_visual_scroll());
+		invalidate = invalidate.get_bounding_box(render_visible_area());
 	});
 
 	const int epoll_fd = epoll_create1(0);
@@ -438,55 +457,16 @@ void Terminal::run()
 	}
 }
 
-Rectangle Terminal::show_selection()
+void Terminal::update_selection()
 {
-	if (m_old_selection.has_value())
-	{
-		auto& selection = m_old_selection.value();
-		selection.start.x = BAN::Math::min(selection.start.x, cols() - 1);
-		selection.start.y = BAN::Math::min(selection.start.y, rows() - 1);
-		selection.  end.x = BAN::Math::min(selection.  end.x, cols() - 1);
-		selection.  end.y = BAN::Math::min(selection.  end.y, rows() - 1);
-	}
+	if (!m_selection.has_value())
+		return;
 
-	Rectangle invalidate;
+	const int32_t selection_s = m_selection->start.y * cols() + m_selection->start.x;
+	const int32_t selection_e = m_selection->  end.y * cols() + m_selection->  end.x;
 
-	const auto redraw_character = [this, &invalidate](size_t index, bool selected) {
-		const uint32_t col = index % cols();
-		const uint32_t row = index / cols();
-		const uint32_t x = col * m_font.width();
-		const uint32_t y = row * m_font.height();
-		const auto& cell = m_cells[row * cols() + col];
-		if (selected && cell.codepoint == 0)
-			return;
-		m_window->texture().fill_rect(x, y, m_font.width(), m_font.height(), selected ? s_default_fg_color : cell.bg_color);
-		m_window->texture().draw_character(cell.codepoint, m_font, x, y, selected ? s_default_bg_color : cell.fg_color);
-		invalidate = invalidate.get_bounding_box({ x, y, m_font.width(), m_font.height() });
-	};
-
-	if (m_old_selection.has_value())
-	{
-		const uint32_t old_selection_start = m_old_selection->start.y * cols() + m_old_selection->start.x;
-		const uint32_t old_selection_end   = m_old_selection->  end.y * cols() + m_old_selection->  end.x;
-		const auto old_selection_min = BAN::Math::min(old_selection_start, old_selection_end);
-		const auto old_selection_max = BAN::Math::max(old_selection_start, old_selection_end);
-		for (size_t i = old_selection_min; i <= old_selection_max; i++)
-			redraw_character(i, false);
-	}
-
-	if (m_cur_selection.has_value())
-	{
-		const uint32_t cur_selection_start = m_cur_selection->start.y * cols() + m_cur_selection->start.x;
-		const uint32_t cur_selection_end   = m_cur_selection->  end.y * cols() + m_cur_selection->  end.x;
-		const auto cur_selection_min = BAN::Math::min(cur_selection_start, cur_selection_end);
-		const auto cur_selection_max = BAN::Math::max(cur_selection_start, cur_selection_end);
-		for (size_t i = cur_selection_min; i <= cur_selection_max; i++)
-			redraw_character(i, true);
-	}
-
-	m_old_selection = m_cur_selection;
-
-	return invalidate;
+	m_selection->min = BAN::Math::min(selection_s, selection_e);
+	m_selection->max = BAN::Math::max(selection_s, selection_e);
 }
 
 Rectangle Terminal::hide_cursor()
@@ -747,7 +727,7 @@ Rectangle Terminal::handle_csi(char ch)
 
 			if (m_visual_scroll != 0)
 			{
-				invalidate = render_visual_scroll(true);
+				invalidate = render_visible_area(true);
 				break;
 			}
 
@@ -816,7 +796,7 @@ Rectangle Terminal::handle_csi(char ch)
 
 			if (m_visual_scroll != 0)
 			{
-				invalidate = render_visual_scroll(true);
+				invalidate = render_visible_area(true);
 				break;
 			}
 
@@ -851,7 +831,7 @@ Rectangle Terminal::handle_csi(char ch)
 
 			if (m_visual_scroll != 0)
 			{
-				invalidate = render_visual_scroll(true);
+				invalidate = render_visible_area(true);
 				break;
 			}
 
@@ -886,7 +866,7 @@ Rectangle Terminal::handle_csi(char ch)
 
 			if (m_visual_scroll != 0)
 			{
-				invalidate = render_visual_scroll(true);
+				invalidate = render_visible_area(true);
 				break;
 			}
 
@@ -920,7 +900,7 @@ Rectangle Terminal::handle_csi(char ch)
 
 			if (m_visual_scroll != 0)
 			{
-				invalidate = render_visual_scroll(true);
+				invalidate = render_visible_area(true);
 				break;
 			}
 
@@ -954,7 +934,7 @@ Rectangle Terminal::handle_csi(char ch)
 
 			if (m_visual_scroll != 0)
 			{
-				invalidate = render_visual_scroll(true);
+				invalidate = render_visible_area(true);
 				break;
 			}
 
@@ -1082,6 +1062,19 @@ Rectangle Terminal::handle_csi(char ch)
 
 Rectangle Terminal::render_cell(uint32_t x, uint32_t y, const Cell& cell)
 {
+	auto fg_color = cell.fg_color;
+	auto bg_color = cell.bg_color;
+	if (m_selection.has_value())
+	{
+		const int32_t abs_pos = (y - m_visual_scroll) * cols() + x;
+		if (m_selection->min <= abs_pos && abs_pos <= m_selection->max)
+		{
+			// TODO: don't highlight blank cells at the end of lines
+			fg_color = 0xFF'000000;
+			bg_color = 0xFF'FFFFFF;
+		}
+	}
+
 	auto& texture = m_window->texture();
 
 	const auto tex_x = x * m_font.width();
@@ -1090,19 +1083,19 @@ Rectangle Terminal::render_cell(uint32_t x, uint32_t y, const Cell& cell)
 	const auto w = (x < cols() - 1) ? m_font.width()  : texture.width()  - tex_x;
 	const auto h = (y < rows() - 1) ? m_font.height() : texture.height() - tex_y;
 
-	texture.fill_rect(tex_x, tex_y, w, h, cell.bg_color);
+	texture.fill_rect(tex_x, tex_y, w, h, bg_color);
 
-	if (cell.codepoint != 0 && cell.codepoint != ' ' && cell.fg_color != cell.bg_color)
+	if (cell.codepoint != 0 && cell.codepoint != ' ' && fg_color != bg_color)
 	{
-		texture.draw_character(cell.codepoint, m_font, tex_x, tex_y, cell.fg_color);
+		texture.draw_character(cell.codepoint, m_font, tex_x, tex_y, fg_color);
 		if (cell.bold)
-			texture.draw_character(cell.codepoint, m_font, tex_x + 1, tex_y, cell.fg_color);
+			texture.draw_character(cell.codepoint, m_font, tex_x + 1, tex_y, fg_color);
 	}
 
 	return { tex_x, tex_y, w, h };
 }
 
-Rectangle Terminal::render_visual_scroll(bool skip_scrollback)
+Rectangle Terminal::render_visible_area(bool skip_scrollback)
 {
 	Rectangle rect1, rect2;
 
@@ -1165,16 +1158,38 @@ Rectangle Terminal::handle_scroll()
 
 	m_cursor.y--;
 
+	bool needs_full_render = false;
+
+	if (m_selection.has_value())
+	{
+		const int32_t min_selection_y = -static_cast<int32_t>(m_scrollback->size());
+		if (m_selection->start.y == min_selection_y || m_selection->end.y == min_selection_y)
+		{
+			m_selection = {};
+			needs_full_render = true;
+		}
+		else
+		{
+			m_selection->start.y--;
+			m_selection->  end.y--;
+		}
+		update_selection();
+	}
+
 	if (m_visual_scroll != 0)
 	{
-		if (m_visual_scroll >= scrollback.size())
-			return render_visual_scroll();
-
 		m_visual_scroll++;
-		if (m_visual_scroll >= rows())
-			return {};
-		return render_visual_scroll(false);
+		if (m_visual_scroll > m_scrollback->size())
+		{
+			m_visual_scroll = m_scrollback->size();
+			needs_full_render = true;
+		}
 	}
+
+	if (needs_full_render)
+		return render_visible_area();
+	if (m_visual_scroll)
+		return {};
 
 	auto& texture = m_window->texture();
 
@@ -1182,34 +1197,6 @@ Rectangle Terminal::handle_scroll()
 
 	const size_t y_off = (rows() - 1) * m_font.height();
 	texture.fill_rect(0, y_off, m_window->width(), m_window->height() - y_off, m_bg_color);
-
-	if (m_cur_selection.has_value())
-	{
-		m_old_selection = {};
-
-		if (m_cur_selection->start.y == 0 && m_cur_selection->start.y == 0)
-			m_cur_selection = {};
-		else
-		{
-			if (m_cur_selection->start.y != 0)
-				m_cur_selection->start.y--;
-			else
-			{
-				m_cur_selection->start.y = 0;
-				m_cur_selection->start.x = 0;
-			}
-
-			if (m_cur_selection->end.y != 0)
-				m_cur_selection->end.y--;
-			else
-			{
-				m_cur_selection->end.y = 0;
-				m_cur_selection->end.x = 0;
-			}
-		}
-
-		show_selection();
-	}
 
 	return { 0, 0, m_window->width(), m_window->height() };
 }
@@ -1277,7 +1264,7 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 			m_cells[m_cursor.y * cols() + m_cursor.x] = cell;
 
 			if (m_visual_scroll != 0)
-				invalidate = invalidate.get_bounding_box(render_visual_scroll(true));
+				invalidate = invalidate.get_bounding_box(render_visible_area(true));
 			else
 			{
 				const auto cell_area = render_cell(m_cursor.x, m_cursor.y, cell);
@@ -1449,7 +1436,7 @@ Rectangle Terminal::resize()
 	BAN::Vector<bool> new_soft_wraps;
 	MUST(new_soft_wraps.resize(rows(), false));
 
-	auto new_cursor = Position {};
+	auto new_cursor = Cursor {};
 
 	const auto put_cell = [&](const Cell& cell) {
 		if (cur_y == UINT32_MAX)
@@ -1547,9 +1534,6 @@ Rectangle Terminal::resize()
 	m_soft_wraps = BAN::move(new_soft_wraps);
 	m_cursor = new_cursor;
 
-	m_is_selecting = false;
-	m_cur_selection = {};
-
 	m_visual_scroll = BAN::Math::min(m_visual_scroll, m_scrollback->size());
-	return render_visual_scroll();
+	return render_visible_area();
 }
