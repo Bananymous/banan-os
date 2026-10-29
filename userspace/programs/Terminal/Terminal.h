@@ -4,6 +4,8 @@
 
 #include <LibGUI/Window.h>
 
+#include <BAN/CircularQueue.h>
+
 struct Rectangle
 {
 	uint32_t x      { 0 };
@@ -35,8 +37,10 @@ public:
 	uint32_t rows() const { return m_window->height() / m_font.height(); }
 
 private:
+	struct Cell;
+
 	void handle_sgr(int32_t value);
-	Rectangle scroll(uint32_t scroll);
+	Rectangle handle_scroll();
 	Rectangle handle_csi(char ch);
 	Rectangle putcodepoint(uint32_t codepoint);
 	Rectangle putchar(uint8_t ch);
@@ -55,6 +59,9 @@ private:
 	void on_key_event(LibGUI::EventPacket::KeyEvent::event_t);
 
 	void start_shell();
+
+	Rectangle render_cell(uint32_t x, uint32_t y, const Cell&);
+	Rectangle render_visual_scroll(bool skip_scrollback = false);
 
 private:
 	struct Position
@@ -98,6 +105,13 @@ private:
 		Position end;
 	};
 
+	struct ScrollbackLine
+	{
+		BAN::Vector<Cell> cells;
+		bool soft_wrap;
+	};
+	using Scrollback = BAN::CircularQueue<ScrollbackLine, 1024>;
+
 private:
 	BAN::UniqPtr<LibGUI::Window> m_window;
 	LibFont::Font m_font;
@@ -110,6 +124,9 @@ private:
 	uint32_t m_cells_cols { 0 };
 
 	BAN::Vector<bool> m_soft_wraps;
+
+	BAN::UniqPtr<Scrollback> m_scrollback;
+	size_t m_visual_scroll { 0 };
 
 	BAN::Optional<Selection> m_cur_selection;
 	BAN::Optional<Selection> m_old_selection;
