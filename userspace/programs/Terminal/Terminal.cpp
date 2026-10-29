@@ -15,30 +15,28 @@
 #include <time.h>
 #include <unistd.h>
 
-static constexpr uint32_t s_colors_dark[] {
+static constexpr uint32_t s_color_palette[] {
 	0xCC'000000,
-	0xCC'FF0000,
-	0xCC'00FF00,
-	0xCC'FFFF00,
-	0xCC'0000FF,
-	0xCC'FF00FF,
-	0xCC'00FFFF,
-	0xCC'BFBFBF,
+	0xFF'FF0000,
+	0xFF'00FF00,
+	0xFF'FFFF00,
+	0xFF'0000FF,
+	0xFF'FF00FF,
+	0xFF'00FFFF,
+	0xFF'BFBFBF,
+
+	0xFF'3F3F3F,
+	0xFF'FF7F7F,
+	0xFF'7FFF7F,
+	0xFF'FFFF7F,
+	0xFF'7F7FFF,
+	0xFF'FF7FFF,
+	0xFF'7FFFFF,
+	0xFF'FFFFFF,
 };
 
-static constexpr uint32_t s_colors_bright[] {
-	0xCC'3F3F3F,
-	0xCC'FF7F7F,
-	0xCC'7FFF7F,
-	0xCC'FFFF7F,
-	0xCC'7F7FFF,
-	0xCC'FF7FFF,
-	0xCC'7FFFFF,
-	0xCC'FFFFFF,
-};
-
-static constexpr auto s_default_bg_color = s_colors_dark[0];
-static constexpr auto s_default_fg_color = s_colors_bright[7];
+static constexpr auto s_default_bg_color = s_color_palette[ 0];
+static constexpr auto s_default_fg_color = s_color_palette[15];
 
 void Terminal::start_shell()
 {
@@ -589,22 +587,22 @@ void Terminal::handle_sgr(int32_t value)
 			m_colors_inverted = false;
 			break;
 		case 30 ... 37:
-			m_fg_color = s_colors_dark[value - 30];
+			m_fg_color = s_color_palette[value - 30];
 			break;
 		case 39:
 			m_fg_color = s_default_fg_color;
 			break;
 		case 40 ... 47:
-			m_bg_color = s_colors_dark[value - 40];
+			m_bg_color = s_color_palette[value - 40];
 			break;
 		case 49:
 			m_bg_color = s_default_bg_color;
 			break;
 		case 90 ... 97:
-			m_fg_color = s_colors_bright[value - 90];
+			m_fg_color = s_color_palette[8 + value - 90];
 			break;
 		case 100 ... 107:
-			m_bg_color = s_colors_bright[value - 100];
+			m_bg_color = s_color_palette[8 + value - 100];
 			break;
 		default:
 			dprintln("TODO: SGR {}", value);
@@ -619,21 +617,19 @@ BAN::Optional<uint32_t> Terminal::get_8bit_color()
 		return {};
 
 	const uint8_t code = BAN::Math::min(m_csi_info.fields[2], 255);
-	if (code < 8)
-		return s_colors_dark[code];
 	if (code < 16)
-		return s_colors_bright[code - 8];
+		return s_color_palette[code];
 
 	if (code < 232)
 	{
 		const uint8_t r = (code - 16) / 36 % 6 * 40 + 55;
 		const uint8_t g = (code - 16) /  6 % 6 * 40 + 55;
 		const uint8_t b = (code - 16) /  1 % 6 * 40 + 55;
-		return b | (g << 8) | (r << 16) | (0xCC << 24);
+		return b | (g << 8) | (r << 16) | (0xFF << 24);
 	}
 
 	const uint8_t gray = (code - 232) * 10 + 8;
-	return gray | (gray << 8) | (gray << 16) | (0xCC << 24);
+	return gray | (gray << 8) | (gray << 16) | (0xFF << 24);
 }
 
 BAN::Optional<uint32_t> Terminal::get_24bit_color()
@@ -645,7 +641,7 @@ BAN::Optional<uint32_t> Terminal::get_24bit_color()
 	const uint8_t r = BAN::Math::min(m_csi_info.fields[2], 255);
 	const uint8_t g = BAN::Math::min(m_csi_info.fields[3], 255);
 	const uint8_t b = BAN::Math::min(m_csi_info.fields[4], 255);
-	return b | (g << 8) | (r << 16) | (0xCC << 24);
+	return b | (g << 8) | (r << 16) | (0xFF << 24);
 }
 
 Rectangle Terminal::handle_csi(char ch)
