@@ -152,8 +152,8 @@ void Terminal::run()
 	attributes.resizable = true;
 
 	m_window = MUST(LibGUI::Window::create(600, 400, "Terminal"_sv, attributes));
-	m_window->texture().fill(m_bg_color);
-	m_window->texture().set_bg_color(m_bg_color);
+	m_window->texture().fill(s_default_bg_color);
+	m_window->texture().set_bg_color(s_default_bg_color);
 	m_window->invalidate();
 
 	attributes.shown = true;
@@ -165,9 +165,9 @@ void Terminal::run()
 
 	MUST(m_cells.resize(rows() * cols(), {
 		.codepoint = 0,
-		.fg_color = m_fg_color,
-		.bg_color = m_bg_color,
-		.bold = m_is_bold
+		.fg_color = s_default_fg_color,
+		.bg_color = s_default_bg_color,
+		.bold = false,
 	}));
 	m_cells_rows = rows();
 	m_cells_cols = cols();
@@ -191,6 +191,8 @@ void Terminal::run()
 	m_cursor_blink_next_ms = get_current_ms() + m_cursor_blink_interval_ms;
 
 	show_cursor();
+
+	Rectangle invalidate;
 
 	m_window->set_resize_window_event_callback([&] {
 		const auto is_cell_visible = [](const Cell& cell) {
@@ -359,8 +361,7 @@ void Terminal::run()
 			m_cur_selection = {};
 
 			m_visual_scroll = BAN::Math::min(m_visual_scroll, m_scrollback->size());
-			render_visual_scroll();
-			m_window->invalidate();
+			invalidate = invalidate.get_bounding_box(render_visual_scroll());
 		}
 
 		const winsize winsize {
@@ -467,8 +468,7 @@ void Terminal::run()
 			if (m_visual_scroll != 0)
 			{
 				m_visual_scroll = 0;
-				render_visual_scroll();
-				m_window->invalidate();
+				invalidate = invalidate.get_bounding_box(render_visual_scroll());
 			}
 		}
 
@@ -488,8 +488,7 @@ void Terminal::run()
 			.y = static_cast<uint32_t>(BAN::Math::clamp<int32_t>(event.y / static_cast<int32_t>(m_font.height()), 0, rows() - 1)),
 		};
 
-		if (const auto invalidate = show_selection(); invalidate.width && invalidate.height)
-			m_window->invalidate(invalidate.x, invalidate.y, invalidate.width, invalidate.height);
+		invalidate = invalidate.get_bounding_box(show_selection());
 	});
 
 	m_window->set_mouse_button_event_callback([&](LibGUI::EventPacket::MouseButtonEvent::event_t event) {
@@ -518,8 +517,7 @@ void Terminal::run()
 				return;
 		}
 
-		if (const auto invalidate = show_selection(); invalidate.width && invalidate.height)
-			m_window->invalidate(invalidate.x, invalidate.y, invalidate.width, invalidate.height);
+		invalidate = invalidate.get_bounding_box(show_selection());
 	});
 
 	m_window->set_mouse_scroll_event_callback([&](LibGUI::EventPacket::MouseScrollEvent::event_t event) {
@@ -527,8 +525,7 @@ void Terminal::run()
 		m_cur_selection = {};
 
 		m_visual_scroll = BAN::Math::clamp<int32_t>(static_cast<int32_t>(m_visual_scroll) + event.scroll * 5, 0, m_scrollback->size());
-		render_visual_scroll();
-		m_window->invalidate();
+		invalidate = invalidate.get_bounding_box(render_visual_scroll());
 	});
 
 	const int epoll_fd = epoll_create1(0);
@@ -584,7 +581,9 @@ void Terminal::run()
 				m_cursor_blink_toggle = !m_cursor_blink_toggle;
 		}
 
-		const auto rect1 = hide_cursor();
+		invalidate = {};
+
+		invalidate = invalidate.get_bounding_box(hide_cursor());
 
 		for (int i = 0; i < nevent; i++)
 		{
@@ -595,18 +594,16 @@ void Terminal::run()
 			}
 
 			if (events[i].data.fd == m_shell_info.pts_master)
-				if (!read_shell())
-					s_shell_exited = true;
+				invalidate = invalidate.get_bounding_box(read_shell());
 
 			if (events[i].data.fd == m_window->server_fd())
 				m_window->poll_events();
 		}
 
-		const auto rect2 = show_cursor();
+		invalidate = invalidate.get_bounding_box(show_cursor());
 
-		const auto rect = rect1.get_bounding_box(rect2);
-		if (rect.width && rect.height)
-			m_window->invalidate(rect.x, rect.y, rect.width, rect.height);
+		if (invalidate.width && invalidate.height)
+			m_window->invalidate(invalidate.x, invalidate.y, invalidate.width, invalidate.height);
 	}
 }
 
@@ -621,7 +618,7 @@ Rectangle Terminal::show_selection()
 		selection.  end.y = BAN::Math::min(selection.  end.y, rows() - 1);
 	}
 
-	Rectangle invalidate {};
+	Rectangle invalidate;
 
 	const auto redraw_character = [this, &invalidate](size_t index, bool selected) {
 		const uint32_t col = index % cols();
@@ -715,30 +712,22 @@ void Terminal::write_shell(BAN::StringView data)
 	}
 }
 
-bool Terminal::read_shell()
+Rectangle Terminal::read_shell()
 {
 	char buffer[512];
 	const ssize_t nread = read(m_shell_info.pts_master, buffer, sizeof(buffer));
 	if (nread < 0)
 		dwarnln("read: {}", strerror(errno));
 	if (nread <= 0)
-		return false;
+	{
+		s_shell_exited = true;
+		return {};
+	}
 
 	Rectangle invalidate;
 	for (ssize_t i = 0; i < nread; i++)
 		invalidate = invalidate.get_bounding_box(putchar(buffer[i]));
-
-	if (invalidate.height && invalidate.width)
-	{
-		m_window->invalidate(
-			invalidate.x,
-			invalidate.y,
-			invalidate.width,
-			invalidate.height
-		);
-	}
-
-	return true;
+	return invalidate;
 }
 
 void Terminal::handle_sgr(int32_t value)
@@ -850,7 +839,7 @@ Rectangle Terminal::handle_csi(char ch)
 		return {};
 	}
 
-	Rectangle should_invalidate;
+	Rectangle invalidate;
 
 	auto& texture = m_window->texture();
 
@@ -922,14 +911,14 @@ Rectangle Terminal::handle_csi(char ch)
 				m_visual_scroll = 0;
 
 				texture.fill(bg_color);
-				should_invalidate = { 0, 0, m_window->width(), m_window->height() };
+				invalidate = { 0, 0, m_window->width(), m_window->height() };
 
 				break;
 			}
 
 			if (m_visual_scroll != 0)
 			{
-				should_invalidate = render_visual_scroll(true);
+				invalidate = render_visual_scroll(true);
 				break;
 			}
 
@@ -977,7 +966,7 @@ Rectangle Terminal::handle_csi(char ch)
 			for (size_t i = 0; i < rect_count; i++)
 			{
 				texture.fill_rect(rects[i].x, rects[i].y, rects[i].width, rects[i].height, bg_color);
-				should_invalidate = should_invalidate.get_bounding_box(rects[i]);
+				invalidate = invalidate.get_bounding_box(rects[i]);
 			}
 
 			break;
@@ -998,7 +987,7 @@ Rectangle Terminal::handle_csi(char ch)
 
 			if (m_visual_scroll != 0)
 			{
-				should_invalidate = render_visual_scroll(true);
+				invalidate = render_visual_scroll(true);
 				break;
 			}
 
@@ -1009,7 +998,7 @@ Rectangle Terminal::handle_csi(char ch)
 			rect.height = m_font.height();
 
 			texture.fill_rect(rect.x, rect.y, rect.width, rect.height, bg_color);
-			should_invalidate = rect;
+			invalidate = rect;
 
 			break;
 		}
@@ -1033,13 +1022,13 @@ Rectangle Terminal::handle_csi(char ch)
 
 			if (m_visual_scroll != 0)
 			{
-				should_invalidate = render_visual_scroll(true);
+				invalidate = render_visual_scroll(true);
 				break;
 			}
 
 			texture.copy_horizontal_slice(dst_y, src_y, m_window->height() - dst_y);
 			texture.fill_rect(0, src_y, m_window->width(), count * m_font.height(), bg_color);
-			should_invalidate = {
+			invalidate = {
 				0,
 				src_y,
 				m_window->width(),
@@ -1068,13 +1057,13 @@ Rectangle Terminal::handle_csi(char ch)
 
 			if (m_visual_scroll != 0)
 			{
-				should_invalidate = render_visual_scroll(true);
+				invalidate = render_visual_scroll(true);
 				break;
 			}
 
 			texture.copy_horizontal_slice(dst_y, src_y, m_window->height() - dst_y);
 			texture.fill_rect(0, m_window->height() - count * m_font.height(), m_window->width(), count * m_font.height(), bg_color);
-			should_invalidate = {
+			invalidate = {
 				0,
 				src_y,
 				m_window->width(),
@@ -1102,13 +1091,13 @@ Rectangle Terminal::handle_csi(char ch)
 
 			if (m_visual_scroll != 0)
 			{
-				should_invalidate = render_visual_scroll(true);
+				invalidate = render_visual_scroll(true);
 				break;
 			}
 
 			texture.copy_rect(dst_x, y, src_x, y, m_window->width() - src_x, m_font.height());
 			texture.fill_rect(m_window->width() - count * m_font.width(), y, count * m_font.width(), m_font.height(), bg_color);
-			should_invalidate = {
+			invalidate = {
 				dst_x,
 				y,
 				m_window->width() - dst_x,
@@ -1136,13 +1125,13 @@ Rectangle Terminal::handle_csi(char ch)
 
 			if (m_visual_scroll != 0)
 			{
-				should_invalidate = render_visual_scroll(true);
+				invalidate = render_visual_scroll(true);
 				break;
 			}
 
 			texture.copy_rect(dst_x, y, src_x, y, m_window->width() - dst_x, m_font.height());
 			texture.fill_rect(src_x, y, count * m_font.width(), m_font.height(), bg_color);
-			should_invalidate = {
+			invalidate = {
 				src_x,
 				y,
 				m_window->width() - src_x,
@@ -1156,7 +1145,7 @@ Rectangle Terminal::handle_csi(char ch)
 				m_csi_info.fields[0] = 1;
 			if (m_last_graphic_char)
 				for (int32_t i = 0; i < m_csi_info.fields[0]; i++)
-					should_invalidate = should_invalidate.get_bounding_box(putcodepoint(m_last_graphic_char));
+					invalidate = invalidate.get_bounding_box(putcodepoint(m_last_graphic_char));
 			break;
 		case 'c':
 			write_shell("\e[?1;0c"_sv);
@@ -1259,7 +1248,7 @@ Rectangle Terminal::handle_csi(char ch)
 	}
 
 	m_state = State::Normal;
-	return should_invalidate;
+	return invalidate;
 }
 
 Rectangle Terminal::render_cell(uint32_t x, uint32_t y, const Cell& cell)
@@ -1398,7 +1387,7 @@ Rectangle Terminal::handle_scroll()
 
 Rectangle Terminal::putcodepoint(uint32_t codepoint)
 {
-	Rectangle should_invalidate;
+	Rectangle invalidate;
 
 	switch (codepoint)
 	{
@@ -1419,7 +1408,7 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 		case '\n':
 			m_cursor.y++;
 			if (m_cursor.y >= rows())
-				should_invalidate = handle_scroll();
+				invalidate = handle_scroll();
 			break;
 		case '\r':
 			m_cursor.x = 0;
@@ -1448,7 +1437,7 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 			}
 
 			if (m_cursor.y >= rows())
-				should_invalidate = handle_scroll();
+				invalidate = handle_scroll();
 
 			const auto cell = Cell {
 				.codepoint = codepoint,
@@ -1459,11 +1448,11 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 			m_cells[m_cursor.y * cols() + m_cursor.x] = cell;
 
 			if (m_visual_scroll != 0)
-				should_invalidate = should_invalidate.get_bounding_box(render_visual_scroll(true));
+				invalidate = invalidate.get_bounding_box(render_visual_scroll(true));
 			else
 			{
 				const auto cell_area = render_cell(m_cursor.x, m_cursor.y, cell);
-				should_invalidate = should_invalidate.get_bounding_box(cell_area);
+				invalidate = invalidate.get_bounding_box(cell_area);
 			}
 
 			m_last_graphic_char = codepoint;
@@ -1472,7 +1461,7 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 			break;
 	}
 
-	return should_invalidate;
+	return invalidate;
 }
 
 Rectangle Terminal::putchar(uint8_t ch)

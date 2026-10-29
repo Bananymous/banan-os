@@ -45,7 +45,7 @@ private:
 	Rectangle putcodepoint(uint32_t codepoint);
 	Rectangle putchar(uint8_t ch);
 
-	bool read_shell();
+	Rectangle read_shell();
 	void write_shell(BAN::StringView data);
 
 	Rectangle show_selection();
