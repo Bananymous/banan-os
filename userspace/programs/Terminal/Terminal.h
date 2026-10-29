@@ -60,6 +60,8 @@ private:
 
 	void start_shell();
 
+	Rectangle resize();
+
 	Rectangle render_cell(uint32_t x, uint32_t y, const Cell&);
 	Rectangle render_visual_scroll(bool skip_scrollback = false);
 

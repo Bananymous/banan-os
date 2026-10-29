@@ -195,174 +195,7 @@ void Terminal::run()
 	Rectangle invalidate;
 
 	m_window->set_resize_window_event_callback([&] {
-		const auto is_cell_visible = [](const Cell& cell) {
-			return cell.codepoint != 0 || cell.bg_color != s_default_bg_color;
-		};
-
-		const auto blank_cell = Cell {
-			.codepoint = 0,
-			.fg_color = s_default_fg_color,
-			.bg_color = s_default_bg_color,
-			.bold = false,
-		};
-
-		if (cols() != m_cells_cols && !m_scrollback->empty())
-		{
-			auto new_scrollback_uptr = MUST(BAN::UniqPtr<Scrollback>::create());
-
-			auto& new_scrollback = *new_scrollback_uptr;
-
-			const auto push_empty_line = [&] {
-				if (!new_scrollback.full())
-					new_scrollback.push({ .cells = { cols(), blank_cell }, .soft_wrap = false });
-				else
-				{
-					auto temp = BAN::move(new_scrollback.front());
-					for (auto& cell : temp.cells)
-						cell = blank_cell;
-					temp.soft_wrap = false;
-
-					new_scrollback.pop();
-					new_scrollback.push(BAN::move(temp));
-				}
-			};
-
-			uint32_t cur_x = 0;
-			const auto put_cell = [&](const Cell& cell) {
-				if (cur_x >= new_scrollback.back().cells.size())
-				{
-					new_scrollback.back().soft_wrap = true;
-					push_empty_line();
-					cur_x = 0;
-				}
-
-				new_scrollback.back().cells[cur_x++] = cell;
-			};
-
-			push_empty_line();
-
-			const auto& scrollback = *m_scrollback;
-			for (size_t y = 0; y < scrollback.size(); y++)
-			{
-				const auto& line = scrollback[y];
-
-				for (size_t x = 0; x < line.cells.size(); x++)
-				{
-					if (!is_cell_visible(line.cells[x]))
-						continue;
-
-					for (size_t xoff = 1; xoff <= x; xoff++)
-					{
-						const auto& prev_cell = line.cells[x - xoff];
-						if (is_cell_visible(prev_cell))
-							break;
-						put_cell(prev_cell);
-					}
-
-					put_cell(line.cells[x]);
-				}
-
-				if (!line.soft_wrap && y + 1 < scrollback.size())
-				{
-					push_empty_line();
-					cur_x = 0;
-				}
-			}
-
-			m_scrollback = BAN::move(new_scrollback_uptr);
-		}
-
-		if (cols() != m_cells_cols || rows() != m_cells_rows)
-		{
-			BAN::Vector<Cell> new_cells;
-			MUST(new_cells.resize(rows() * cols(), blank_cell));
-
-			BAN::Vector<bool> new_soft_wraps;
-			MUST(new_soft_wraps.resize(rows(), false));
-
-			auto new_cursor = m_cursor;
-
-			uint32_t cur_x = 0, cur_y = 0;
-			const auto put_cell = [&](const Cell& cell) {
-				if (cur_x >= cols())
-				{
-					new_soft_wraps[cur_y] = true;
-					cur_x = 0;
-					cur_y++;
-				}
-
-				if (cur_y >= rows())
-				{
-					const size_t scroll = cur_y - rows() + 1;
-
-					memmove(&new_cells[0], &new_cells[cols()], (rows() - scroll) * cols() * sizeof(Cell));
-					for (size_t i = (rows() - scroll) * cols(); i < rows() * cols(); i++)
-						new_cells[i] = blank_cell;
-
-					memmove(&new_soft_wraps[0], &new_soft_wraps[scroll], rows() - scroll);
-					memset(&new_soft_wraps[rows() - scroll], 0, scroll);
-
-					new_cursor.y -= scroll;
-					cur_y -= scroll;
-				}
-
-				new_cells[cur_y * cols() + cur_x++] = cell;
-			};
-
-			const size_t visible_height = ({
-				size_t height = m_cells_rows;
-				for (; height > 0; height--)
-				{
-					bool is_visible = false;
-					for (size_t i = (height - 1) * m_cells_cols; i < m_cells_rows * m_cells_cols && !is_visible; i++)
-						is_visible = is_cell_visible(m_cells[i]);
-					if (is_visible)
-						break;
-				}
-				height;
-			});
-
-			for (size_t y = 0; y < visible_height; y++)
-			{
-				for (size_t x = 0; x < m_cells_cols; x++)
-				{
-					if (x == m_cursor.x && y == m_cursor.y)
-						new_cursor = { .x = cur_x, .y = cur_y };
-
-					const auto& cell = m_cells[y * m_cells_cols + x];
-					if (!is_cell_visible(cell))
-						continue;
-
-					for (size_t xoff = 1; xoff <= x; xoff++)
-					{
-						const auto& prev_cell = m_cells[y * m_cells_cols + x - xoff];
-						if (is_cell_visible(prev_cell))
-							break;
-						put_cell(prev_cell);
-					}
-
-					put_cell(cell);
-				}
-
-				if (!m_soft_wraps[y])
-				{
-					cur_x = 0;
-					cur_y++;
-				}
-			}
-
-			m_cells = BAN::move(new_cells);
-			m_cells_rows = rows();
-			m_cells_cols = cols();
-			m_soft_wraps = BAN::move(new_soft_wraps);
-			m_cursor = new_cursor;
-
-			m_is_selecting = false;
-			m_cur_selection = {};
-
-			m_visual_scroll = BAN::Math::min(m_visual_scroll, m_scrollback->size());
-			invalidate = invalidate.get_bounding_box(render_visual_scroll());
-		}
+		invalidate = invalidate.get_bounding_box(resize());
 
 		const winsize winsize {
 			.ws_row = static_cast<unsigned short>(rows()),
@@ -1528,4 +1361,199 @@ Rectangle Terminal::putchar(uint8_t ch)
 	}
 
 	return putcodepoint(codepoint);
+}
+
+Rectangle Terminal::resize()
+{
+	if (cols() == m_cells_cols && rows() == m_cells_rows)
+		return {};
+
+	const auto is_cell_visible = [](const Cell& cell) {
+		return cell.codepoint != 0 || cell.bg_color != s_default_bg_color;
+	};
+
+	const auto blank_cell = Cell {
+		.codepoint = 0,
+		.fg_color = s_default_fg_color,
+		.bg_color = s_default_bg_color,
+		.bold = false,
+	};
+
+	uint32_t cur_x = 0, cur_y = 0;
+
+	if (cols() != m_cells_cols && !m_scrollback->empty())
+	{
+		auto new_scrollback_uptr = MUST(BAN::UniqPtr<Scrollback>::create());
+		auto& new_scrollback = *new_scrollback_uptr;
+
+		const auto push_empty_line = [&] {
+			if (!new_scrollback.full())
+				new_scrollback.push({ .cells = { cols(), blank_cell }, .soft_wrap = false });
+			else
+			{
+				auto temp = BAN::move(new_scrollback.front());
+				for (auto& cell : temp.cells)
+					cell = blank_cell;
+				temp.soft_wrap = false;
+
+				new_scrollback.pop();
+				new_scrollback.push(BAN::move(temp));
+			}
+		};
+
+		const auto put_cell = [&](const Cell& cell) {
+			if (cur_x >= cols())
+			{
+				new_scrollback.back().soft_wrap = true;
+				push_empty_line();
+				cur_x = 0;
+			}
+
+			new_scrollback.back().cells[cur_x++] = cell;
+		};
+
+		const auto& scrollback = *m_scrollback;
+		for (size_t y = 0; y < scrollback.size(); y++)
+		{
+			if (y == 0 || !scrollback[y - 1].soft_wrap)
+			{
+				push_empty_line();
+				cur_x = 0;
+			}
+
+			const auto& line = scrollback[y];
+			for (size_t x = 0; x < line.cells.size(); x++)
+			{
+				if (!is_cell_visible(line.cells[x]))
+					continue;
+
+				for (size_t xoff = 1; xoff <= x; xoff++)
+				{
+					const auto& prev_cell = line.cells[x - xoff];
+					if (is_cell_visible(prev_cell))
+						break;
+					put_cell(prev_cell);
+				}
+
+				put_cell(line.cells[x]);
+			}
+		}
+
+		if (m_scrollback->back().soft_wrap)
+			cur_y = UINT32_MAX;
+		else
+			cur_y = cur_x = 0;
+
+		m_scrollback = BAN::move(new_scrollback_uptr);
+	}
+
+	BAN::Vector<Cell> new_cells;
+	MUST(new_cells.resize(rows() * cols(), blank_cell));
+
+	BAN::Vector<bool> new_soft_wraps;
+	MUST(new_soft_wraps.resize(rows(), false));
+
+	auto new_cursor = Position {};
+
+	const auto put_cell = [&](const Cell& cell) {
+		if (cur_y == UINT32_MAX)
+		{
+			if (cur_x < cols())
+			{
+				m_scrollback->back().cells[cur_x++] = cell;
+				return;
+			}
+
+			m_scrollback->back().soft_wrap = true;
+			cur_x = 0;
+			cur_y = 0;
+		}
+
+		if (cur_x >= cols())
+		{
+			new_soft_wraps[cur_y] = true;
+			cur_x = 0;
+			cur_y++;
+		}
+
+		if (cur_y >= rows())
+		{
+			if (!m_scrollback->full())
+				m_scrollback->push({ .cells = cols(), .soft_wrap = false });
+			else
+			{
+				auto temp = BAN::move(m_scrollback->front());
+				m_scrollback->pop();
+				m_scrollback->push(BAN::move(temp));
+			}
+			memcpy(m_scrollback->back().cells.data(), new_cells.data(), cols() * sizeof(Cell));
+			m_scrollback->back().soft_wrap = new_soft_wraps[0];
+
+			memmove(&new_cells[0], &new_cells[cols()], (rows() - 1) * cols() * sizeof(Cell));
+			for (size_t i = (rows() - 1) * cols(); i < rows() * cols(); i++)
+				new_cells[i] = blank_cell;
+			memmove(new_soft_wraps.data(), new_soft_wraps.data() + 1, rows() - 1);
+			new_soft_wraps[rows() - 1] = false;
+
+			if (new_cursor.y > 0)
+				new_cursor.y--;
+			cur_y--;
+		}
+
+		new_cells[cur_y * cols() + cur_x++] = cell;
+	};
+
+	const size_t visible_height = ({
+		size_t height = m_cells_rows;
+		for (; height > 0; height--)
+		{
+			bool is_visible = false;
+			for (size_t i = (height - 1) * m_cells_cols; i < m_cells_rows * m_cells_cols && !is_visible; i++)
+				is_visible = is_cell_visible(m_cells[i]);
+			if (is_visible)
+				break;
+		}
+		height;
+	});
+
+	for (size_t y = 0; y < visible_height; y++)
+	{
+		for (size_t x = 0; x < m_cells_cols; x++)
+		{
+			if (x == m_cursor.x && y == m_cursor.y)
+				new_cursor = { .x = cur_x, .y = cur_y };
+
+			const auto& cell = m_cells[y * m_cells_cols + x];
+			if (!is_cell_visible(cell))
+				continue;
+
+			for (size_t xoff = 1; xoff <= x; xoff++)
+			{
+				const auto& prev_cell = m_cells[y * m_cells_cols + x - xoff];
+				if (is_cell_visible(prev_cell))
+					break;
+				put_cell(prev_cell);
+			}
+
+			put_cell(cell);
+		}
+
+		if (!m_soft_wraps[y])
+		{
+			cur_x = 0;
+			cur_y++;
+		}
+	}
+
+	m_cells = BAN::move(new_cells);
+	m_cells_rows = rows();
+	m_cells_cols = cols();
+	m_soft_wraps = BAN::move(new_soft_wraps);
+	m_cursor = new_cursor;
+
+	m_is_selecting = false;
+	m_cur_selection = {};
+
+	m_visual_scroll = BAN::Math::min(m_visual_scroll, m_scrollback->size());
+	return render_visual_scroll();
 }
