@@ -376,10 +376,10 @@ void Terminal::run()
 					if (!clipboard.empty())
 					{
 						if (m_brackted_paste_mode)
-							write(m_shell_info.pts_master, "\e[200~", 6);
-						write(m_shell_info.pts_master, clipboard.data(), clipboard.size());
+							write_shell("\e[200~"_sv);
+						write_shell(clipboard);
 						if (m_brackted_paste_mode)
-							write(m_shell_info.pts_master, "\e[201~", 6);
+							write_shell("\e[201~"_sv);
 					}
 
 					break;
@@ -392,7 +392,7 @@ void Terminal::run()
 		}
 
 		if (const char* text = LibInput::key_to_utf8_ansi(event.key, event.modifier))
-			write(m_shell_info.pts_master, text, strlen(text));
+			write_shell(text);
 
 		timespec ts;
 		clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -575,6 +575,23 @@ void Terminal::show_cursor()
 		m_font.width(),
 		m_font.height()
 	);
+}
+
+void Terminal::write_shell(BAN::StringView data)
+{
+	size_t total_written = 0;
+	while (total_written < data.size())
+	{
+		const ssize_t nwrite = write(m_shell_info.pts_master, data.data() + total_written, data.size() - total_written);
+		if (nwrite < 0)
+			dwarnln("write: {}", strerror(errno));
+		if (nwrite <= 0)
+		{
+			s_shell_exited = true;
+			return;
+		}
+		total_written += nwrite;
+	}
 }
 
 bool Terminal::read_shell()
@@ -1027,7 +1044,7 @@ Rectangle Terminal::handle_csi(char ch)
 					should_invalidate = should_invalidate.get_bounding_box(putcodepoint(m_last_graphic_char));
 			break;
 		case 'c':
-			write(m_shell_info.pts_master, "\e[?1;0c", 7);
+			write_shell("\e[?1;0c"_sv);
 			break;
 		case 'd':
 			m_cursor.y = BAN::Math::clamp<int32_t>(m_csi_info.fields[0], 1, rows()) - 1;
@@ -1064,7 +1081,7 @@ Rectangle Terminal::handle_csi(char ch)
 			}
 			char buffer[2 + 10 + 1 + 10 + 2];
 			sprintf(buffer, "\e[%u;%uR", m_cursor.y + 1, m_cursor.x + 1);
-			write(m_shell_info.pts_master, buffer, strlen(buffer));
+			write_shell(buffer);
 			break;
 		default:
 			dprintln("TODO: CSI {}", ch);
@@ -1098,7 +1115,7 @@ Rectangle Terminal::handle_csi(char ch)
 		switch (ch)
 		{
 		case 'c':
-			write(m_shell_info.pts_master, "\e[>0;10;1c", 10);
+			write_shell("\e[>0;10;1c"_sv);
 			break;
 		default:
 			dprintln("TODO: CSI > {}", ch);
@@ -1109,7 +1126,7 @@ Rectangle Terminal::handle_csi(char ch)
 		switch (ch)
 		{
 		case 'c':
-			write(m_shell_info.pts_master, "\eP!|00000000\e\\", 14);
+			write_shell("\eP!|00000000\e\\"_sv);
 			break;
 		default:
 			dprintln("TODO: CSI = {}", ch);

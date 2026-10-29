@@ -40,7 +40,9 @@ private:
 	Rectangle handle_csi(char ch);
 	Rectangle putcodepoint(uint32_t codepoint);
 	Rectangle putchar(uint8_t ch);
+
 	bool read_shell();
+	void write_shell(BAN::StringView data);
 
 	Rectangle show_selection();
 
