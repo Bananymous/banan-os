@@ -165,6 +165,8 @@ void Terminal::run()
 	m_cells_rows = rows();
 	m_cells_cols = cols();
 
+	MUST(m_soft_wraps.resize(rows(), false));
+
 	{
 		const winsize winsize {
 			.ws_row = static_cast<unsigned short>(rows()),
@@ -193,38 +195,117 @@ void Terminal::run()
 				.codepoint = 0,
 				.fg_color = m_fg_color,
 				.bg_color = m_bg_color,
-				.bold = m_is_bold,
+				.bold = false,
 			}));
 
-			for (size_t y = 0; y < BAN::Math::min(rows(), m_cells_rows); y++)
-				for (size_t x = 0; x < BAN::Math::min(cols(), m_cells_cols); x++)
-					new_cells[y * cols() + x] = m_cells[y * m_cells_cols + x];
+			BAN::Vector<bool> new_soft_wraps;
+			MUST(new_soft_wraps.resize(rows(), false));
+
+			auto new_cursor = m_cursor;
+
+			uint32_t cur_x = 0, cur_y = 0;
+			const auto put_cell = [&](const Cell& cell) {
+				if (cur_x >= cols())
+				{
+					new_soft_wraps[cur_y] = true;
+					cur_x = 0;
+					cur_y++;
+				}
+
+				if (cur_y >= rows())
+				{
+					const size_t scroll = cur_y - rows() + 1;
+
+					memmove(&new_cells[0], &new_cells[cols()], (rows() - scroll) * cols() * sizeof(Cell));
+					for (size_t i = (rows() - scroll) * cols(); i < rows() * cols(); i++)
+						new_cells[i] = {
+							.codepoint = 0,
+							.fg_color = m_fg_color,
+							.bg_color = m_bg_color,
+							.bold = false,
+						};
+
+					memmove(&new_soft_wraps[0], &new_soft_wraps[scroll], rows() - scroll);
+					memset(&new_soft_wraps[rows() - scroll], 0, scroll);
+
+					new_cursor.y -= scroll;
+					cur_y -= scroll;
+				}
+
+				new_cells[cur_y * cols() + cur_x++] = cell;
+			};
+
+			const size_t visible_height = ({
+				size_t height = m_cells_rows;
+				for (; height > 0; height--)
+				{
+					bool is_visible = false;
+					for (size_t i = (height - 1) * m_cells_cols; i < m_cells_rows * m_cells_cols && !is_visible; i++)
+						is_visible = m_cells[i].codepoint != 0 || m_cells[i].fg_color != m_fg_color || m_cells[i].bg_color != m_bg_color;
+					if (is_visible)
+						break;
+				}
+				height;
+			});
+
+			for (size_t y = 0; y < visible_height; y++)
+			{
+				for (size_t x = 0; x < m_cells_cols; x++)
+				{
+					if (x == m_cursor.x && y == m_cursor.y)
+						new_cursor = { .x = cur_x, .y = cur_y };
+
+					const auto& cell = m_cells[y * m_cells_cols + x];
+					if (cell.codepoint == 0)
+						continue;
+
+					for (size_t xoff = 1; xoff <= x; xoff++)
+					{
+						const auto& prev_cell = m_cells[y * m_cells_cols + x - xoff];
+						if (prev_cell.codepoint != 0)
+							break;
+						put_cell(prev_cell);
+					}
+
+					put_cell(cell);
+				}
+
+				if (!m_soft_wraps[y])
+				{
+					cur_x = 0;
+					cur_y++;
+				}
+			}
+
 			m_cells = BAN::move(new_cells);
 			m_cells_rows = rows();
 			m_cells_cols = cols();
+			m_soft_wraps = BAN::move(new_soft_wraps);
+			m_cursor = new_cursor;
 
-			if (m_cur_selection.has_value())
+			m_is_selecting = false;
+			m_cur_selection = {};
+
+			auto& texture = m_window->texture();
+			for (size_t y = 0; y < rows(); y++)
 			{
-				m_cur_selection = {};
-				if (const auto invalidate = show_selection(); invalidate.width && invalidate.height)
-					m_window->invalidate(invalidate.x, invalidate.y, invalidate.width, invalidate.height);
+				for (size_t x = 0; x < cols(); x++)
+				{
+					const auto& cell = m_cells[y * cols() + x];
+
+					const auto tex_x = x * m_font.width();
+					const auto tex_y = y * m_font.height();
+
+					const auto w = (x < cols() - 1) ? m_font.width()  : texture.width()  - tex_x;
+					const auto h = (x < rows() - 1) ? m_font.height() : texture.height() - tex_y;
+
+					texture.fill_rect(tex_x, tex_y, w, h, cell.bg_color);
+					texture.draw_character(cell.codepoint, m_font, tex_x, tex_y, cell.fg_color);
+				}
 			}
-		}
 
-		if (const auto rem = m_window->height() % m_font.height())
-		{
-			m_window->texture().fill_rect(0, m_window->height() - rem, m_window->width(), rem, m_bg_color);
-			m_window->invalidate(0, m_window->height() - rem, m_window->width(), rem);
+			m_window->invalidate();
 		}
-
-		if (const auto rem = m_window->width() % m_font.width())
-		{
-			m_window->texture().fill_rect(m_window->width() - rem, 0, rem, m_window->height(), m_bg_color);
-			m_window->invalidate(m_window->width() - rem, 0, rem, m_window->height());
-		}
-
-		m_cursor.x = BAN::Math::min(m_cursor.x, cols() - 1);
-		m_cursor.y = BAN::Math::min(m_cursor.y, rows() - 1);
 
 		const winsize winsize {
 			.ws_row = static_cast<unsigned short>(rows()),
@@ -265,7 +346,7 @@ void Terminal::run()
 					BAN::String buffer;
 					for (size_t i = selection_min; i <= selection_max; i++)
 					{
-						if (i != selection_min && i % cols() == 0)
+						if (i != selection_min && i % cols() == 0 && !m_soft_wraps[i / cols() - 1])
 							MUST(buffer.push_back('\n'));
 
 						const auto cell = m_cells[i];
@@ -651,7 +732,7 @@ Rectangle Terminal::handle_csi(char ch)
 		return {};
 	}
 
-	if (ch == '?' || ch == '>' || ch == '=')
+	if (ch == '?' || ch == '>' || ch == '=' || ch == '%')
 	{
 		m_csi_info.param = ch;
 		return {};
@@ -1035,6 +1116,14 @@ Rectangle Terminal::handle_csi(char ch)
 			break;
 		}
 		break;
+	case '%':
+		switch (ch)
+		{
+		default:
+			dprintln("TODO: CSI % {}", ch);
+			break;
+		}
+		break;
 	}
 
 	m_state = State::Normal;
@@ -1043,17 +1132,17 @@ Rectangle Terminal::handle_csi(char ch)
 
 Rectangle Terminal::scroll(uint32_t scroll)
 {
-	for (size_t i = 0; i < rows() - scroll; i++)
-		for (size_t x = 0; x < cols(); x++)
-			m_cells[i * cols() + x] = m_cells[(i + scroll) * cols() + x];
-	for (size_t i = 0; i < scroll; i++)
-		for (size_t x = 0; x < cols(); x++)
-			m_cells[(rows() - scroll + i) * cols() + x] = {
-				.codepoint = 0,
-				.fg_color = m_fg_color,
-				.bg_color = m_bg_color,
-				.bold = false,
-			};
+	memmove(&m_cells[0], &m_cells[scroll * cols()], (rows() - scroll) * cols() * sizeof(Cell));
+	for (size_t i = (rows() - scroll) * cols(); i < rows() * cols(); i++)
+		m_cells[i] = {
+			.codepoint = 0,
+			.fg_color = m_fg_color,
+			.bg_color = m_bg_color,
+			.bold = false,
+		};
+
+	memmove(m_soft_wraps.data(), m_soft_wraps.data() + scroll, rows() - scroll);
+	memset(m_soft_wraps.data() + rows() - scroll, 0, scroll);
 
 	auto& texture = m_window->texture();
 
@@ -1142,6 +1231,7 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 
 			if (m_cursor.x >= cols())
 			{
+				m_soft_wraps[m_cursor.y] = true;
 				m_cursor.x = 0;
 				m_cursor.y++;
 			}

@@ -107,6 +107,8 @@ private:
 	uint32_t m_cells_rows { 0 };
 	uint32_t m_cells_cols { 0 };
 
+	BAN::Vector<bool> m_soft_wraps;
+
 	BAN::Optional<Selection> m_cur_selection;
 	BAN::Optional<Selection> m_old_selection;
 	bool m_is_selecting { false };
