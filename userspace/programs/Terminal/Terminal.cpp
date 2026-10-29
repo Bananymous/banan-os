@@ -10,7 +10,7 @@
 #include <pwd.h>
 #include <signal.h>
 #include <stdlib.h>
-#include <sys/select.h>
+#include <sys/epoll.h>
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
@@ -531,37 +531,77 @@ void Terminal::run()
 		m_window->invalidate();
 	});
 
-	const int max_fd = BAN::Math::max(m_shell_info.pts_master, m_window->server_fd());
+	const int epoll_fd = epoll_create1(0);
+	if (epoll_fd == -1)
+	{
+		dwarnln("epoll_create1: {}", strerror(errno));
+		return;
+	}
+
+	{
+		const int fds[] { m_shell_info.pts_master, m_window->server_fd() };
+		for (const int fd : fds)
+		{
+			epoll_event event {
+				.events = EPOLLIN,
+				.data = { .fd = fd },
+			};
+			if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event) == -1)
+			{
+				dwarnln("epoll_ctl: {}", strerror(errno));
+				return;
+			}
+		}
+	}
+
 	while (!s_shell_exited)
 	{
-		fd_set fds;
-		FD_ZERO(&fds);
-		FD_SET(m_shell_info.pts_master, &fds);
-		FD_SET(m_window->server_fd(), &fds);
+		const auto timeout_ms = [&]() -> int {
+			const uint64_t current_ms = get_current_ms();
+			if (current_ms >= m_cursor_blink_next_ms)
+				return 0;
+			const uint64_t timeout_ms = m_cursor_blink_next_ms - current_ms;
+			if (timeout_ms > INT_MAX)
+				return -1;
+			return timeout_ms;
+		}();
 
-		const uint64_t current_ms = get_current_ms();
-		const uint64_t timeout_ms = m_cursor_blink_next_ms < current_ms ? m_cursor_blink_next_ms - current_ms : 0;
-
-		timeval timeout {
-			.tv_sec  = static_cast<time_t>     (timeout_ms / 1000),
-			.tv_usec = static_cast<suseconds_t>(timeout_ms % 1000 * 1000),
-		};
-		const int nselect = select(max_fd + 1, &fds, nullptr, nullptr, &timeout);
-		if (nselect < 0)
-			continue;
-
-		if (get_current_ms() >= m_cursor_blink_next_ms)
+		epoll_event events[2];
+		const int nevent = epoll_wait(epoll_fd, events, sizeof(events) / sizeof(*events), timeout_ms);
+		if (nevent == -1)
 		{
-			m_cursor_blink_next_ms += m_cursor_blink_interval_ms;
-			m_cursor_blink_toggle = !m_cursor_blink_toggle;
+			if (errno == EINTR)
+				continue;
+			dwarnln("epoll_wait: {}", strerror(errno));
+			break;
+		}
+
+		if (const auto current_ms = get_current_ms(); current_ms >= m_cursor_blink_next_ms)
+		{
+			const auto toggles = (current_ms - m_cursor_blink_next_ms) / m_cursor_blink_interval_ms + 1;
+			m_cursor_blink_next_ms += toggles * m_cursor_blink_interval_ms;
+			if (toggles % 2)
+				m_cursor_blink_toggle = !m_cursor_blink_toggle;
 		}
 
 		const auto rect1 = hide_cursor();
-		if (FD_ISSET(m_shell_info.pts_master, &fds))
-			if (!read_shell())
+
+		for (int i = 0; i < nevent; i++)
+		{
+			if (!(events[i].events & EPOLLIN))
+			{
+				s_shell_exited = true;
 				break;
-		if (FD_ISSET(m_window->server_fd(), &fds))
-			m_window->poll_events();
+			}
+
+			if (events[i].data.fd == m_shell_info.pts_master)
+				if (!read_shell())
+					s_shell_exited = true;
+
+			if (events[i].data.fd == m_window->server_fd())
+				m_window->poll_events();
+		}
+
 		const auto rect2 = show_cursor();
 
 		const auto rect = rect1.get_bounding_box(rect2);
