@@ -54,9 +54,6 @@ namespace Kernel
 
 	static BAN::Atomic<uint8_t>  s_processors_created { 0 };
 
-	// 32 bit milli seconds are definitely enough as APs start on boot
-	static BAN::Atomic<uint32_t> s_first_ap_ready_ms { static_cast<uint32_t>(-1) };
-
 	static BAN::Array<Processor,   0xFF> s_processors;
 	static BAN::Array<ProcessorID, 0xFF> s_processor_ids { PROCESSOR_NONE };
 
@@ -423,6 +420,8 @@ namespace Kernel
 
 	void Processor::wait_until_processors_ready()
 	{
+		static uint64_t s_timeout_ms = UINT64_MAX;
+
 		initialize_smp();
 
 		auto& current = s_processors[current_id().as_u32()];
@@ -432,23 +431,9 @@ namespace Kernel
 		{
 			initialize_shared_page();
 
+			s_timeout_ms = SystemTimer::get().ms_since_boot() + 1000;
+
 			current.m_index = s_processor_count++;
-
-			// single processor system
-			if (s_processors_created == 1)
-				return;
-
-			// wait until first AP is ready
-			const uint64_t timeout_ms = SystemTimer::get().ms_since_boot() + 1000;
-			while (s_first_ap_ready_ms == static_cast<uint32_t>(-1))
-			{
-				if (SystemTimer::get().ms_since_boot() >= timeout_ms)
-				{
-					dprintln("Could not initialize any APs :(");
-					return;
-				}
-				__builtin_ia32_pause();
-			}
 		}
 		else
 		{
@@ -456,27 +441,21 @@ namespace Kernel
 			while (s_processor_count == 0)
 				__builtin_ia32_pause();
 			current.m_index = s_processor_count++;
-
-			uint32_t expected = static_cast<uint32_t>(-1);
-			s_first_ap_ready_ms.compare_exchange(expected, SystemTimer::get().ms_since_boot());
 		}
 
 		s_processor_ids[current.m_index] = current.m_id;
 		current.gdt().set_cpu_index(current.m_index);
 
 		// wait until all processors are initialized
+		while (s_processor_count < s_processors_created)
 		{
-			const uint32_t timeout_ms = s_first_ap_ready_ms + 1000;
-			while (s_processor_count < s_processors_created)
+			if (SystemTimer::get().ms_since_boot() >= s_timeout_ms)
 			{
-				if (SystemTimer::get().ms_since_boot() >= timeout_ms)
-				{
-					if (current_is_bsp())
-						dprintln("Could not initialize {} processors :(", s_processors_created - s_processor_count);
-					break;
-				}
-				__builtin_ia32_pause();
+				if (current_is_bsp())
+					dprintln("Could not initialize {} processors :(", s_processors_created - s_processor_count);
+				break;
 			}
+			__builtin_ia32_pause();
 		}
 	}
 
