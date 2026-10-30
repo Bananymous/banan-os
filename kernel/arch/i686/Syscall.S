@@ -14,6 +14,14 @@ asm_syscall_handler:
 	pushl %ebp
 	cld
 
+	# load kernel segments
+	movw $0x10, %bp
+	movw %bp, %ds
+	movw %bp, %es
+	movw %bp, %fs
+	movw $0x28, %bp
+	movw %bp, %gs
+
 	# align stack
 	movl %esp, %ebp
 	andl $-16, %esp
@@ -22,7 +30,6 @@ asm_syscall_handler:
 	cmpl $8, %eax
 	je .Lasm_syscall_handler_fork
 
-	# push arguments
 	subl $8, %esp
 	pushl %edi
 	pushl %esi
@@ -30,20 +37,11 @@ asm_syscall_handler:
 	pushl %ecx
 	pushl %ebx
 	pushl %eax
-
-	# load kernel segments
-	movw $0x10, %ax
-	movw %ax, %ds
-	movw %ax, %es
-	movw %ax, %fs
-	movw $0x28, %ax
-	movw %ax, %gs
-
 	call cpp_syscall_handler
 
- .Lasm_syscall_handler_done:
 	movl %ebp, %esp
 
+ .Lasm_syscall_handler_done:
 	# restore userspace segments
 	movw $(0x20 | 3), %bx
 	movw %bx, %ds
@@ -60,33 +58,18 @@ asm_syscall_handler:
 	popl %edx
 	popl %ecx
 	popl %ebx
-
 	iret
 
  .Lasm_syscall_handler_fork:
-	pushl %ebp
-	pushl %ebx
-	pushl %esi
-	pushl %edi
-
 	call read_eip
 	testl %eax, %eax
-	jz .Lasm_syscall_handler_fork_child
-
-	movl %esp, %ebx
+	jz .Lasm_syscall_handler_done
 
 	subl $4, %esp
 	pushl %eax
-	pushl %ebx
+	pushl %ebp
 	pushl $8
 	call cpp_syscall_handler
 
-	addl $32, %esp
-	jmp .Lasm_syscall_handler_done
-
- .Lasm_syscall_handler_fork_child:
-	popl %edi
-	popl %ebx
-	popl %ebx
-	popl %ebp
+	movl %ebp, %esp
 	jmp .Lasm_syscall_handler_done
