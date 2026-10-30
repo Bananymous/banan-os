@@ -1,5 +1,7 @@
 #!/bin/bash
 
+shopt -s nullglob
+
 if (( $# != 1 )); then
 	echo "No arguments given for $0" >&2
 	exit 1
@@ -181,23 +183,18 @@ if [ "$VERSION" = "git" ]; then
 		COMMIT="${BASH_REMATCH[2]}"
 
 		if [ -d "$build_dir" ]; then
-			pushd $build_dir >/dev/null
-			if [ ! "$(git rev-parse HEAD)" = "$COMMIT" ]; then
-				clean
+			if [ ! "$(cd "$build_dir" && git rev-parse HEAD)" = "$COMMIT" ]; then
+				rm -r "$build_dir"
 			fi
-			popd >/dev/null
 		fi
 
 		if [ ! -d "$build_dir" ]; then
-			git clone "$REPO_URL" "$build_dir" || exit 1
+			git clone --depth=1 --revision="$COMMIT" "$REPO_URL" "$build_dir" || exit 1
 
 			pushd "$build_dir" >/dev/null
-			git checkout "$COMMIT" || exit 1
-			if [ -d ../patches ]; then
-				for patch in ../patches/*.patch ; do
-					git apply "$patch" || exit 1
-				done
-			fi
+			for patch in ../patches/*.patch ; do
+				git apply "$patch" || exit 1
+			done
 			popd >/dev/null
 		fi
 	else
@@ -232,11 +229,9 @@ else
 			: "${TAR_CONTENT:=$NAME-$VERSION}"
 			mv "$TAR_CONTENT" "$build_dir" || exit 1
 
-			if [ -d patches ]; then
-				for patch in ./patches/*.patch ; do
-					patch -ruN -p1 -d "$build_dir" < "$patch" || exit 1
-				done
-			fi
+			for patch in ./patches/*.patch ; do
+				patch -ruN -p1 -d "$build_dir" < "$patch" || exit 1
+			done
 		else
 			if [ ! -d "$build_dir" ]; then
 				mkdir -p "$build_dir" || exit 1
