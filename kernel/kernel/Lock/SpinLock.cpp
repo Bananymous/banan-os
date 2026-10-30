@@ -6,6 +6,13 @@
 
 #define SPINLOCK_TIMEOUTS 1
 
+#if ARCH(i686)
+// i have no idea why this crashes the 32 bit target
+// during timer init
+#undef SPINLOCK_TIMEOUTS
+#define SPINLOCK_TIMEOUTS 0
+#endif
+
 namespace Kernel
 {
 
