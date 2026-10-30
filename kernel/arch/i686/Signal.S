@@ -61,7 +61,7 @@ signal_trampoline:
 
 	// restore stack
 	movl %ebp, %esp
-	addl $24, %esp
+	addl $32, %esp
 
 	// restore sigmask
 	movl $79, %eax      // SYS_SIGPROCMASK
