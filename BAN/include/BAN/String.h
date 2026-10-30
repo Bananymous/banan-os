@@ -274,31 +274,64 @@ namespace BAN
 		}
 
 	private:
-		ErrorOr<void> ensure_capacity(size_type new_size)
+		template<typename DUMMY = void> // get around GCC warning about always true/false for reallocator check
+		ErrorOr<void> ensure_capacity(size_type new_cap)
 		{
-			if (m_size >= new_size)
+			if (capacity() >= new_cap)
 				return {};
-			if (has_sso() && fits_in_sso(new_size))
-				return {};
-
-			char* new_data = (char*)allocator(new_size + 1);
-			if (new_data == nullptr)
-				return Error::from_errno(ENOMEM);
-
-			if (m_size)
-				memcpy(new_data, data(), m_size + 1);
 
 			if (has_sso())
 			{
-				m_storage.general_storage = GeneralStorage();
+				if (fits_in_sso(new_cap))
+					return {};
+
+				char* new_data = static_cast<char*>(BAN::allocator(new_cap + 1));
+				if (new_data == nullptr)
+					return BAN::Error::from_errno(ENOMEM);
+
+				if (m_size > 0)
+					memcpy(new_data, m_storage.sso_storage.data, m_size);
+				new_data[m_size] = '\0';
+
+				m_storage.general_storage = {
+					.capacity = new_cap,
+					.data = new_data,
+				};
 				m_has_sso = false;
 			}
 			else
-				deallocator(m_storage.general_storage.data);
+			{
+				new_cap = BAN::Math::max(new_cap, capacity() * 2);
 
-			auto& storage = m_storage.general_storage;
-			storage.capacity = new_size;
-			storage.data = new_data;
+				if constexpr (BAN::reallocator)
+				{
+					char* new_data = static_cast<char*>(BAN::reallocator(m_storage.general_storage.data, new_cap + 1));
+					if (new_data == nullptr)
+						return BAN::Error::from_errno(ENOMEM);
+
+					m_storage.general_storage = {
+						.capacity = new_cap,
+						.data = new_data,
+					};
+				}
+				else
+				{
+					char* new_data = static_cast<char*>(BAN::allocator(new_cap + 1));
+					if (new_data == nullptr)
+						return BAN::Error::from_errno(ENOMEM);
+
+					if (m_size > 0)
+						memcpy(new_data, m_storage.general_storage.data, m_size);
+					new_data[m_size] = '\0';
+
+					BAN::deallocator(m_storage.general_storage.data);
+
+					m_storage.general_storage = {
+						.capacity = new_cap,
+						.data = new_data,
+					};
+				}
+			}
 
 			return {};
 		}
