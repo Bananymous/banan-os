@@ -75,10 +75,11 @@ asm_syscall_handler:
 
 	movl %esp, %ebx
 
-	subl $8, %esp
+	subl $4, %esp
 	pushl %eax
 	pushl %ebx
-	call cpp_fork_handler
+	pushl $8
+	call cpp_syscall_handler
 
 	addl $32, %esp
 	jmp .Lasm_syscall_handler_done

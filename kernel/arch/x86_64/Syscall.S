@@ -42,9 +42,9 @@ asm_syscall_handler:
 	testq %rax, %rax
 	jz .Lasm_syscall_handler_fork_child
 
-	movq %rax, %rsi
-	movq %rsp, %rdi
-	call cpp_fork_handler
+	movq %rsp, %rsi
+	movq %rax, %rdx
+	call cpp_syscall_handler
 
 	addq $48, %rsp
 	jmp .Lasm_syscall_handler_done

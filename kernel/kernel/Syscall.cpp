@@ -10,30 +10,12 @@
 #include <sys/syscall.h>
 
 #define DUMP_ALL_SYSCALLS 0
-#define DUMP_LONG_SYSCALLS 0
+#define DUMP_UNSUPPOTED_SYSCALLS 1
+
+#define SYSCALL_DUMP_SKIP_COND false
 
 namespace Kernel
 {
-
-	extern "C" long cpp_fork_handler(uintptr_t sp, uintptr_t ip)
-	{
-		// hard coded in Syscall.S
-		static_assert(SYS_FORK == 8);
-
-		Thread::current().set_is_in_syscall(true);
-		Processor::set_interrupt_state(InterruptState::Enabled);
-		Process::current().wait_while_stopped();
-
-		const auto ret = Process::current().sys_fork(sp, ip);
-
-		Process::current().wait_while_stopped();
-		Processor::set_interrupt_state(InterruptState::Disabled);
-		Thread::current().set_is_in_syscall(false);
-
-		if (ret.is_error())
-			return -ret.error().get_error_code();
-		return ret.value();
-	}
 
 	using SyscallHandler = BAN::ErrorOr<long> (Process::*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
 
@@ -53,70 +35,55 @@ namespace Kernel
 
 	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
 	{
-		Thread::current().set_is_in_syscall(true);
-
-		Processor::set_interrupt_state(InterruptState::Enabled);
-
-		Process::current().wait_while_stopped();
-
-		BAN::ErrorOr<long> ret = BAN::Error::from_errno(ENOSYS);
-
-		const char* process_path = Process::current().name();
-
-#if DUMP_ALL_SYSCALLS
-		dprintln("{} pid {}: {}", process_path, Process::current().pid(), s_syscall_names[syscall]);
-#endif
-
-#if DUMP_LONG_SYSCALLS
-		const uint64_t start_ns = SystemTimer::get().ns_since_boot();
-#endif
-
-		ASSERT(syscall != SYS_FORK);
+		auto& process = Process::current();
+		auto& thread = Thread::current();
 
 		if (syscall < 0 || syscall >= __SYSCALL_COUNT)
-			dwarnln("No syscall {}", syscall);
-		else
-#pragma GCC diagnostic push
-#pragma GCC diagnostic warning "-Wmaybe-uninitialized"
-			ret = (Process::current().*s_syscall_handlers[syscall])(arg1, arg2, arg3, arg4, arg5);
-#pragma GCC diagnostic pop
+		{
+			dwarnln("{} {}:{}: Invalid syscall {}",
+				process.name(),
+				process.pid(),
+				thread.tid(),
+				syscall
+			);
+			return -ENOSYS;
+		}
+
+		thread.set_is_in_syscall(true);
+		Processor::set_interrupt_state(InterruptState::Enabled);
+		process.wait_while_stopped();
 
 #if DUMP_ALL_SYSCALLS
-		if (ret.is_error())
-			dprintln("{} pid {}: {}: {}", process_path, Process::current().pid(), s_syscall_names[syscall], ret.error());
-		else
-			dprintln("{} pid {}: {}: {}", process_path, Process::current().pid(), s_syscall_names[syscall], ret.value());
-#else
-		if (ret.is_error() && ret.error().get_error_code() == ENOTSUP)
-			dwarnln("{} pid {}: {}: ENOTSUP", process_path, Process::current().pid(), s_syscall_names[syscall]);
+		if (!(SYSCALL_DUMP_SKIP_COND))
+			dprintln("{} {}:{}: {}", process.name(), process.pid(), thread.tid(), s_syscall_names[syscall]);
 #endif
 
-#if DUMP_LONG_SYSCALLS
-		const uint64_t end_ns = SystemTimer::get().ns_since_boot();
-		const uint64_t duration_us = (end_ns - start_ns) / 1000;
-		if (duration_us > 1'000)
-			dwarnln("{} {} took {}.{3} ms",
-				Process::current().name(),
-				s_syscall_names[syscall],
-				duration_us / 1000, duration_us % 1000
-			);
+		auto result = (Process::current().*s_syscall_handlers[syscall])(arg1, arg2, arg3, arg4, arg5);
+
+#if DUMP_ALL_SYSCALLS
+		if (SYSCALL_DUMP_SKIP_COND)
+			;
+		else if (result.is_error())
+			dprintln("{} {}:{}: {} -> {}", process.name(), process.pid(), thread.tid(), s_syscall_names[syscall], result.error());
+		else
+			dprintln("{} {}:{}: {} -> {}", process.name(), process.pid(), thread.tid(), s_syscall_names[syscall], result.value());
+#elif DUMP_UNSUPPOTED_SYSCALLS
+		if (result.is_error() && result.error().get_error_code() == ENOTSUP)
+			dprintln("{} {}:{}: {} -> {}", process.name(), process.pid(), thread.tid(), s_syscall_names[syscall], result.error());
 #endif
 
 		Process::current().wait_while_stopped();
-
 		if (Thread::current().handle_signal_if_interrupted())
-			if (ret.is_error() && ret.error().get_error_code() == EINTR && is_restartable_syscall(syscall))
-				ret = BAN::Error::from_errno(ERESTART);
-
+			if (result.is_error() && result.error().get_error_code() == EINTR && is_restartable_syscall(syscall))
+				result = BAN::Error::from_errno(ERESTART);
 		Processor::set_interrupt_state(InterruptState::Disabled);
-
 		Thread::current().set_is_in_syscall(false);
 
 		ASSERT(Kernel::Thread::current().state() == Kernel::Thread::State::Executing);
 
-		if (ret.is_error())
-			return -ret.error().get_error_code();
-		return ret.value();
+		if (result.is_error())
+			return -result.error().get_error_code();
+		return result.value();
 	}
 
 	bool is_restartable_syscall(int syscall)
