@@ -29,13 +29,16 @@ namespace BAN
 		template<typename... Args>
 		static BAN::ErrorOr<String> formatted(const char* format, Args&&... args)
 		{
-			size_type length = 0;
-			BAN::Formatter::print([&](char) { length++; }, format, BAN::forward<Args>(args)...);
+			BAN::String result;
 
-			String result;
-			TRY(result.reserve(length));
-			BAN::Formatter::print([&](char c){ MUST(result.push_back(c)); }, format, BAN::forward<Args>(args)...);
+			bool errored { false };
+			BAN::Formatter::print([&](char c) {
+				if (!errored && result.push_back(c).is_error())
+					errored = true;
+			}, format, BAN::forward<Args>(args)...);
 
+			if (errored)
+				return BAN::Error::from_errno(ENOMEM);
 			return result;
 		}
 
