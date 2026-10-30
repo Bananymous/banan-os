@@ -19,16 +19,11 @@ int pselect(int nfds, fd_set* __restrict readfds, fd_set* __restrict writefds, f
 
 int select(int nfds, fd_set* __restrict readfds, fd_set* __restrict writefds, fd_set* __restrict errorfds, struct timeval* __restrict timeout)
 {
-	pthread_testcancel();
-	timespec* pts = nullptr;
-	timespec ts;
-	if (timeout)
-	{
-		ts.tv_sec = timeout->tv_sec;
-		ts.tv_nsec = timeout->tv_usec * 1000;
-		pts = &ts;
-	}
-
-	// TODO: "select may update timeout", should we?
-	return pselect(nfds, readfds, writefds, errorfds, pts, nullptr);
+	if (timeout == nullptr)
+		return pselect(nfds, readfds, writefds, errorfds, nullptr, nullptr);
+	const timespec timeout_ts {
+		.tv_sec  = timeout->tv_sec,
+		.tv_nsec = timeout->tv_usec * 1000,
+	};
+	return pselect(nfds, readfds, writefds, errorfds, &timeout_ts, nullptr);
 }

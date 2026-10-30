@@ -5,7 +5,6 @@
 
 int poll(struct pollfd fds[], nfds_t nfds, int timeout)
 {
-	pthread_testcancel();
 	if (timeout < 0)
 		return ppoll(fds, nfds, nullptr, nullptr);
 	const timespec timeout_ts {
