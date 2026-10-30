@@ -8,7 +8,16 @@
 #include <sys/stat.h>
 
 #include <elf.h>
-#include <link.h>
+
+#define x86_64 1
+#define i686   2
+
+#undef ElfW
+#if __arch == x86_64
+#define ElfW(type) Elf64_##type
+#elif __arch == i686
+#define ElfW(type) Elf32_##type
+#endif
 
 class ELFFile
 {

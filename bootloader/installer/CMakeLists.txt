@@ -17,3 +17,4 @@ set(SOURCES
 
 add_executable(banan_os-bootloader-installer ${SOURCES})
 target_compile_options(banan_os-bootloader-installer PRIVATE -O2 -std=c++20)
+target_compile_definitions(banan_os-bootloader-installer PRIVATE __arch=${BANAN_ARCH})

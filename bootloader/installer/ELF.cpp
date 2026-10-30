@@ -75,9 +75,9 @@ bool ELFFile::validate_elf_header() const
 		return false;
 	}
 
-#if defined(__x86_64__)
+#if __arch == x86_64
 	if (elf_header.e_ident[EI_CLASS] != ELFCLASS64)
-#elif defined(__i686__)
+#elif __arch == i686
 	if (elf_header.e_ident[EI_CLASS] != ELFCLASS32)
 #endif
 	{
