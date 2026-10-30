@@ -189,12 +189,18 @@ if [ "$VERSION" = "git" ]; then
 		fi
 
 		if [ ! -d "$build_dir" ]; then
-			git clone --depth=1 --revision="$COMMIT" "$REPO_URL" "$build_dir" || exit 1
-
+			mkdir "$build_dir" || exit 1
 			pushd "$build_dir" >/dev/null
+
+			git init &&
+			git remote add origin "$REPO_URL" &&
+			git fetch --depth=1 origin "$COMMIT" &&
+			git checkout --detach FETCH_HEAD || exit 1
+
 			for patch in ../patches/*.patch ; do
 				git apply "$patch" || exit 1
 			done
+
 			popd >/dev/null
 		fi
 	else
