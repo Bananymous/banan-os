@@ -1459,7 +1459,7 @@ Rectangle Terminal::resize()
 			cur_y++;
 		}
 
-		if (cur_y >= rows())
+		while (cur_y >= rows())
 		{
 			if (!m_scrollback->full())
 				m_scrollback->push({ .cells = cols(), .soft_wrap = false });
@@ -1526,6 +1526,20 @@ Rectangle Terminal::resize()
 			cur_x = 0;
 			cur_y++;
 		}
+	}
+
+	if (m_cursor.y >= visible_height)
+	{
+		const int32_t empty_rows = m_cursor.y - visible_height;
+
+		new_cursor = {
+			.x = cur_x,
+			.y = cur_y + empty_rows,
+		};
+
+		cur_x = 0;
+		cur_y += empty_rows;
+		put_cell(blank_cell);
 	}
 
 	m_cells = BAN::move(new_cells);
