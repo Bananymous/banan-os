@@ -2860,7 +2860,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_mprotect(void* addr, size_t len, int prot)
 	{
 		if (len == 0)
-			return BAN::Error::from_errno(EINVAL);
+			return 0;
 
 		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(addr);
 		if (vaddr % PAGE_SIZE != 0)
