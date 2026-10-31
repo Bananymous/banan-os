@@ -161,6 +161,13 @@ void Terminal::run()
 
 	m_window->set_min_size(m_font.width() * 8, m_font.height() * 2);
 
+	m_visible = {
+		.x = m_window->width()  % m_font.width()  / 2,
+		.y = m_window->height() % m_font.height() / 2,
+		.w = cols() * m_font.width(),
+		.h = rows() * m_font.height(),
+	};
+
 	MUST(m_cells.resize(rows() * cols(), {
 		.codepoint = 0,
 		.fg_color = s_default_fg_color,
@@ -193,10 +200,21 @@ void Terminal::run()
 	Rectangle invalidate;
 
 	m_window->set_resize_window_event_callback([&] {
+		m_visible = {
+			.x = m_window->width()  % m_font.width()  / 2,
+			.y = m_window->height() % m_font.height() / 2,
+			.w = cols() * m_font.width(),
+			.h = rows() * m_font.height(),
+		};
+
 		m_is_selecting = false;
 		m_selection = {};
 
-		invalidate = invalidate.get_bounding_box(resize());
+		resize();
+
+		m_window->texture().fill(s_default_bg_color);
+		render_visible_area();
+		invalidate = { 0, 0, m_window->width(), m_window->height() };
 
 		const winsize winsize {
 			.ws_row = static_cast<unsigned short>(rows()),
@@ -423,17 +441,21 @@ void Terminal::run()
 			break;
 		}
 
+		invalidate = {};
+
+		const auto old_cursor = m_cursor;
+		bool cursor_did_toggle { false };
+
 		if (const auto current_ms = get_current_ms(); current_ms >= m_cursor_blink_next_ms)
 		{
 			const auto toggles = (current_ms - m_cursor_blink_next_ms) / m_cursor_blink_interval_ms + 1;
 			m_cursor_blink_next_ms += toggles * m_cursor_blink_interval_ms;
-			if (toggles % 2)
+			cursor_did_toggle = (toggles % 2);
+			if (cursor_did_toggle)
 				m_cursor_blink_toggle = !m_cursor_blink_toggle;
 		}
 
-		invalidate = {};
-
-		invalidate = invalidate.get_bounding_box(hide_cursor());
+		const auto cursor_rect1 = hide_cursor();
 
 		for (int i = 0; i < nevent; i++)
 		{
@@ -450,10 +472,13 @@ void Terminal::run()
 				m_window->poll_events();
 		}
 
-		invalidate = invalidate.get_bounding_box(show_cursor());
+		const auto cursor_rect2 = show_cursor();
 
-		if (invalidate.width && invalidate.height)
-			m_window->invalidate(invalidate.x, invalidate.y, invalidate.width, invalidate.height);
+		if (cursor_did_toggle || old_cursor.x != m_cursor.x || old_cursor.y != m_cursor.y)
+			invalidate = invalidate.get_bounding_box(cursor_rect1).get_bounding_box(cursor_rect2);
+
+		if (invalidate.w && invalidate.h)
+			m_window->invalidate(invalidate.x, invalidate.y, invalidate.w, invalidate.h);
 	}
 }
 
@@ -496,12 +521,12 @@ Rectangle Terminal::show_cursor()
 	const uint32_t y_offset = m_font.height() * 13 / 16;
 
 	Rectangle rect;
-	rect.x      =  m_cursor.x                    * m_font.width();
-	rect.y      = (m_cursor.y + m_visual_scroll) * m_font.height() + y_offset;
-	rect.width  = m_font.width();
-	rect.height = m_font.height() - y_offset - 1;
+	rect.x = m_visible.x +  m_cursor.x                    * m_font.width();
+	rect.y = m_visible.y + (m_cursor.y + m_visual_scroll) * m_font.height() + y_offset;
+	rect.w = m_font.width();
+	rect.h = m_font.height() - y_offset - 1;
 
-	m_window->texture().fill_rect(rect.x, rect.y, rect.width, rect.height, 0xFFFFFFFF);
+	m_window->texture().fill_rect(rect.x, rect.y, rect.w, rect.h, 0xFFFFFFFF);
 
 	return rect;
 }
@@ -650,8 +675,6 @@ Rectangle Terminal::handle_csi(char ch)
 
 	Rectangle invalidate;
 
-	auto& texture = m_window->texture();
-
 	const auto fg_color = m_colors_inverted ? m_bg_color : m_fg_color;
 	const auto bg_color = m_colors_inverted ? m_fg_color : m_bg_color;
 
@@ -718,66 +741,9 @@ Rectangle Terminal::handle_csi(char ch)
 				while (!m_scrollback->empty())
 					m_scrollback->pop();
 				m_visual_scroll = 0;
-
-				texture.fill(bg_color);
-				invalidate = { 0, 0, m_window->width(), m_window->height() };
-
-				break;
 			}
 
-			if (m_visual_scroll != 0)
-			{
-				invalidate = render_visible_area(true);
-				break;
-			}
-
-			Rectangle rects[2];
-			size_t rect_count = 0;
-
-			if (m_csi_info.fields[0] == 0)
-			{
-				rects[0].x      = m_cursor.x * m_font.width();
-				rects[0].y      = m_cursor.y * m_font.height();
-				rects[0].width  = m_window->width() - rects[0].x;
-				rects[0].height = m_font.height();
-
-				rects[1].x      = 0;
-				rects[1].y      = (m_cursor.y + 1) * m_font.height();
-				rects[1].width  = m_window->width();
-				rects[1].height = m_window->height() - rects[1].y;
-
-				rect_count = 2;
-			}
-			else if (m_csi_info.fields[0] == 1)
-			{
-				rects[0].x      = 0;
-				rects[0].y      = m_cursor.y * m_font.height();
-				rects[0].width  = m_cursor.x * m_font.width();
-				rects[0].height = m_font.height();
-
-				rects[1].x      = 0;
-				rects[1].y      = 0;
-				rects[1].width  = m_window->width();
-				rects[1].height = m_cursor.y * m_font.height();
-
-				rect_count = 2;
-			}
-			else
-			{
-				rects[0].x      = 0;
-				rects[0].y      = 0;
-				rects[0].width  = m_window->width();
-				rects[0].height = m_window->height();
-
-				rect_count = 1;
-			}
-
-			for (size_t i = 0; i < rect_count; i++)
-			{
-				texture.fill_rect(rects[i].x, rects[i].y, rects[i].width, rects[i].height, bg_color);
-				invalidate = invalidate.get_bounding_box(rects[i]);
-			}
-
+			invalidate = render_visible_area(true);
 			break;
 		}
 		case 'K':
@@ -794,28 +760,12 @@ Rectangle Terminal::handle_csi(char ch)
 					.bold = false,
 				};
 
-			if (m_visual_scroll != 0)
-			{
-				invalidate = render_visible_area(true);
-				break;
-			}
-
-			Rectangle rect;
-			rect.x      = (m_csi_info.fields[0] == 0) ? m_cursor.x * m_font.width() : 0;
-			rect.y      = m_cursor.y * m_font.height();
-			rect.width  = (m_csi_info.fields[0] == 1) ? m_cursor.x * m_font.width() : m_window->width() - rect.x;
-			rect.height = m_font.height();
-
-			texture.fill_rect(rect.x, rect.y, rect.width, rect.height, bg_color);
-			invalidate = rect;
-
+			invalidate = render_visible_area(true);
 			break;
 		}
 		case 'L':
 		{
 			const uint32_t count = (m_csi_info.fields[0] == -1) ? 1 : m_csi_info.fields[0];
-			const uint32_t src_y = m_cursor.y * m_font.height();
-			const uint32_t dst_y = src_y + count * m_font.height();
 
 			for (size_t i = m_cursor.y; i + count < rows(); i++)
 				for (size_t col = 0; col < cols(); col++)
@@ -829,28 +779,12 @@ Rectangle Terminal::handle_csi(char ch)
 						.bold = false,
 					};
 
-			if (m_visual_scroll != 0)
-			{
-				invalidate = render_visible_area(true);
-				break;
-			}
-
-			texture.copy_horizontal_slice(dst_y, src_y, m_window->height() - dst_y);
-			texture.fill_rect(0, src_y, m_window->width(), count * m_font.height(), bg_color);
-			invalidate = {
-				0,
-				src_y,
-				m_window->width(),
-				m_window->height() - src_y
-			};
-
+			invalidate = render_visible_area(true);
 			break;
 		}
 		case 'M':
 		{
 			const uint32_t count = (m_csi_info.fields[0] == -1) ? 1 : m_csi_info.fields[0];
-			const uint32_t dst_y = m_cursor.y * m_font.height();
-			const uint32_t src_y = dst_y + count * m_font.height();
 
 			for (size_t i = m_cursor.y; i + count < rows(); i++)
 				for (size_t col = 0; col < cols(); col++)
@@ -864,29 +798,12 @@ Rectangle Terminal::handle_csi(char ch)
 						.bold = false,
 					};
 
-			if (m_visual_scroll != 0)
-			{
-				invalidate = render_visible_area(true);
-				break;
-			}
-
-			texture.copy_horizontal_slice(dst_y, src_y, m_window->height() - dst_y);
-			texture.fill_rect(0, m_window->height() - count * m_font.height(), m_window->width(), count * m_font.height(), bg_color);
-			invalidate = {
-				0,
-				src_y,
-				m_window->width(),
-				m_window->height() - src_y
-			};
-
+			invalidate = render_visible_area(true);
 			break;
 		}
 		case 'P':
 		{
 			const uint32_t count = (m_csi_info.fields[0] == -1) ? 1 : m_csi_info.fields[0];
-			const uint32_t dst_x = m_cursor.x * m_font.width();
-			const uint32_t src_x = (m_cursor.x + count) * m_font.width();
-			const uint32_t y = m_cursor.y * m_font.height();
 
 			for (size_t i = m_cursor.x; i + count < cols(); i++)
 				m_cells[m_cursor.y * cols() + i] = m_cells[m_cursor.y * cols() + i + count];
@@ -898,29 +815,12 @@ Rectangle Terminal::handle_csi(char ch)
 					.bold = false,
 				};
 
-			if (m_visual_scroll != 0)
-			{
-				invalidate = render_visible_area(true);
-				break;
-			}
-
-			texture.copy_rect(dst_x, y, src_x, y, m_window->width() - src_x, m_font.height());
-			texture.fill_rect(m_window->width() - count * m_font.width(), y, count * m_font.width(), m_font.height(), bg_color);
-			invalidate = {
-				dst_x,
-				y,
-				m_window->width() - dst_x,
-				m_font.height()
-			};
-
+			invalidate = render_visible_area(true);
 			break;
 		}
 		case '@':
 		{
 			const uint32_t count = (m_csi_info.fields[0] == -1) ? 1 : m_csi_info.fields[0];
-			const uint32_t dst_x = (m_cursor.x + count) * m_font.width();
-			const uint32_t src_x = m_cursor.x * m_font.width();
-			const uint32_t y = m_cursor.y * m_font.height();
 
 			for (size_t i = m_cursor.x; i + count < cols(); i++)
 				m_cells[m_cursor.y * cols() + i + count] = m_cells[m_cursor.y * cols() + i];
@@ -932,21 +832,7 @@ Rectangle Terminal::handle_csi(char ch)
 					.bold = false,
 				};
 
-			if (m_visual_scroll != 0)
-			{
-				invalidate = render_visible_area(true);
-				break;
-			}
-
-			texture.copy_rect(dst_x, y, src_x, y, m_window->width() - dst_x, m_font.height());
-			texture.fill_rect(src_x, y, count * m_font.width(), m_font.height(), bg_color);
-			invalidate = {
-				src_x,
-				y,
-				m_window->width() - src_x,
-				m_font.height()
-			};
-
+			invalidate = render_visible_area(true);
 			break;
 		}
 		case 'b':
@@ -1075,24 +961,23 @@ Rectangle Terminal::render_cell(uint32_t x, uint32_t y, const Cell& cell)
 		}
 	}
 
+	const auto cell_w = m_font.width();
+	const auto cell_h = m_font.height();
+	const auto cell_x = m_visible.x + x * cell_w;
+	const auto cell_y = m_visible.y + y * cell_h;
+
 	auto& texture = m_window->texture();
 
-	const auto tex_x = x * m_font.width();
-	const auto tex_y = y * m_font.height();
-
-	const auto w = (x < cols() - 1) ? m_font.width()  : texture.width()  - tex_x;
-	const auto h = (y < rows() - 1) ? m_font.height() : texture.height() - tex_y;
-
-	texture.fill_rect(tex_x, tex_y, w, h, bg_color);
+	texture.fill_rect(cell_x, cell_y, cell_w, cell_h, bg_color);
 
 	if (cell.codepoint != 0 && cell.codepoint != ' ' && fg_color != bg_color)
 	{
-		texture.draw_character(cell.codepoint, m_font, tex_x, tex_y, fg_color);
+		texture.draw_character(cell.codepoint, m_font, cell_x, cell_y, fg_color);
 		if (cell.bold)
-			texture.draw_character(cell.codepoint, m_font, tex_x + 1, tex_y, fg_color);
+			texture.draw_character(cell.codepoint, m_font, cell_x + 1, cell_y, fg_color);
 	}
 
-	return { tex_x, tex_y, w, h };
+	return { cell_x, cell_y, cell_w, cell_h };
 }
 
 Rectangle Terminal::render_visible_area(bool skip_scrollback)
@@ -1101,38 +986,40 @@ Rectangle Terminal::render_visible_area(bool skip_scrollback)
 
 	if (!skip_scrollback)
 	{
-		for (size_t y = 0; y < BAN::Math::min<size_t>(m_visual_scroll, rows()); y++)
+		const size_t count = BAN::Math::min<size_t>(m_visual_scroll, rows());
+
+		for (size_t y = 0; y < count; y++)
 		{
 			const auto& line = (*m_scrollback)[m_scrollback->size() - (m_visual_scroll - y)];
 			for (size_t x = 0; x < cols(); x++)
 				render_cell(x, y, line.cells[x]);
 		}
 
-		rect1.x      = 0;
-		rect1.y      = 0;
-		rect1.width  = m_window->width();
-		rect1.height = m_visual_scroll >= rows() ? m_window->height() : m_visual_scroll * m_font.height();
+		rect1.x = m_visible.x;
+		rect1.y = m_visible.y;
+		rect1.w = m_visible.w;
+		rect1.h = count * m_font.height();
 	}
 
 	if (m_visual_scroll < rows())
 	{
-		for (size_t y = 0; y < rows() - m_visual_scroll; y++)
+		const size_t count = rows() - m_visual_scroll;
+
+		for (size_t y = 0; y < count; y++)
 			for (size_t x = 0; x < cols(); x++)
 				render_cell(x, m_visual_scroll + y, m_cells[y * cols() + x]);
 
-		rect2.x      = 0;
-		rect2.y      = (rows() - m_visual_scroll) * m_font.height();
-		rect2.width  = m_window->width();
-		rect2.height = m_window->height() - rect2.y;
+		rect2.x = m_visible.x;
+		rect2.y = m_visible.y + m_visual_scroll * m_font.height();
+		rect2.w = m_visible.w;
+		rect2.h = count * m_font.height();
 	}
 
 	return rect1.get_bounding_box(rect2);
 }
 
-Rectangle Terminal::handle_scroll()
+void Terminal::handle_scroll()
 {
-	ASSERT(m_cursor.y == rows());
-
 	auto& scrollback = *m_scrollback;
 	if (!scrollback.full())
 		scrollback.push({ .cells = { cols() }, .soft_wrap = false });
@@ -1149,25 +1036,18 @@ Rectangle Terminal::handle_scroll()
 	for (size_t i = (rows() - 1) * cols(); i < rows() * cols(); i++)
 		m_cells[i] = {
 			.codepoint = 0,
-			.fg_color = m_fg_color,
-			.bg_color = m_bg_color,
+			.fg_color = s_default_fg_color,
+			.bg_color = s_default_bg_color,
 			.bold = false,
 		};
 	memmove(m_soft_wraps.data(), m_soft_wraps.data() + 1, rows() - 1);
 	m_soft_wraps[rows() - 1] = false;
 
-	m_cursor.y--;
-
-	bool needs_full_render = false;
-
 	if (m_selection.has_value())
 	{
 		const int32_t min_selection_y = -static_cast<int32_t>(m_scrollback->size());
 		if (m_selection->start.y == min_selection_y || m_selection->end.y == min_selection_y)
-		{
 			m_selection = {};
-			needs_full_render = true;
-		}
 		else
 		{
 			m_selection->start.y--;
@@ -1176,33 +1056,55 @@ Rectangle Terminal::handle_scroll()
 		update_selection();
 	}
 
-	if (m_visual_scroll != 0)
-	{
+	if (m_visual_scroll != 0 && m_visual_scroll < m_scrollback->size())
 		m_visual_scroll++;
-		if (m_visual_scroll > m_scrollback->size())
-		{
-			m_visual_scroll = m_scrollback->size();
-			needs_full_render = true;
-		}
-	}
-
-	if (needs_full_render)
-		return render_visible_area();
-	if (m_visual_scroll)
-		return {};
-
-	auto& texture = m_window->texture();
-
-	texture.shift_vertical(-static_cast<int32_t>(m_font.height()));
-
-	const size_t y_off = (rows() - 1) * m_font.height();
-	texture.fill_rect(0, y_off, m_window->width(), m_window->height() - y_off, m_bg_color);
-
-	return { 0, 0, m_window->width(), m_window->height() };
 }
 
 Rectangle Terminal::putcodepoint(uint32_t codepoint)
 {
+	const auto increment_cursor_y = [this]() -> Rectangle {
+		m_cursor.y++;
+		if (m_cursor.y < rows())
+			return {};
+
+		ASSERT(m_cursor.y == rows());
+		m_cursor.y = rows() - 1;
+
+		const bool forced_scroll = m_scrollback->full() && m_visual_scroll == m_scrollback->size();
+
+		handle_scroll();
+
+		if (m_visual_scroll != 0 && !forced_scroll)
+			return {};
+
+		m_window->texture().copy_horizontal_slice(
+			m_visible.y,
+			m_visible.y + m_font.height(),
+			m_visible.h - m_font.height()
+		);
+
+		if (!forced_scroll)
+		{
+			m_window->texture().fill_rect(
+				m_visible.x,
+				m_visible.y + m_visible.h - m_font.height(),
+				m_visible.w,
+				m_font.height(),
+				s_default_bg_color
+			);
+		}
+		else
+		{
+			const auto cells = (rows() - 1 < m_scrollback->size())
+				? (*m_scrollback)[rows() - 1].cells.span()
+				: m_cells.span().slice((rows() - 1 - m_scrollback->size()) * cols());
+			for (size_t x = 0; x < cols(); x++)
+				render_cell(x, rows() - 1, cells[x]);
+		}
+
+		return m_visible;
+	};
+
 	Rectangle invalidate;
 
 	switch (codepoint)
@@ -1222,9 +1124,7 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 			m_state = State::ESC;
 			break;
 		case '\n':
-			m_cursor.y++;
-			if (m_cursor.y >= rows())
-				invalidate = handle_scroll();
+			invalidate = increment_cursor_y();
 			break;
 		case '\r':
 			m_cursor.x = 0;
@@ -1249,11 +1149,8 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 			{
 				m_soft_wraps[m_cursor.y] = true;
 				m_cursor.x = 0;
-				m_cursor.y++;
+				invalidate = increment_cursor_y();
 			}
-
-			if (m_cursor.y >= rows())
-				invalidate = handle_scroll();
 
 			const auto cell = Cell {
 				.codepoint = codepoint,
@@ -1263,13 +1160,10 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 			};
 			m_cells[m_cursor.y * cols() + m_cursor.x] = cell;
 
-			if (m_visual_scroll != 0)
-				invalidate = invalidate.get_bounding_box(render_visible_area(true));
-			else
-			{
-				const auto cell_area = render_cell(m_cursor.x, m_cursor.y, cell);
-				invalidate = invalidate.get_bounding_box(cell_area);
-			}
+			if (m_cursor.y + m_visual_scroll < rows())
+				invalidate = invalidate.get_bounding_box(
+					render_cell(m_cursor.x, m_cursor.y + m_visual_scroll, cell)
+				);
 
 			m_last_graphic_char = codepoint;
 			m_cursor.x++;
@@ -1346,10 +1240,10 @@ Rectangle Terminal::putchar(uint8_t ch)
 	return putcodepoint(codepoint);
 }
 
-Rectangle Terminal::resize()
+void Terminal::resize()
 {
 	if (cols() == m_cells_cols && rows() == m_cells_rows)
-		return {};
+		return;
 
 	const auto is_cell_visible = [](const Cell& cell) {
 		return cell.codepoint != 0 || cell.bg_color != s_default_bg_color;
@@ -1549,5 +1443,4 @@ Rectangle Terminal::resize()
 	m_cursor = new_cursor;
 
 	m_visual_scroll = BAN::Math::min(m_visual_scroll, m_scrollback->size());
-	return render_visible_area();
 }

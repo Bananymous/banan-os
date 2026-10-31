@@ -8,22 +8,26 @@
 
 struct Rectangle
 {
-	uint32_t x      { 0 };
-	uint32_t y      { 0 };
-	uint32_t width  { 0 };
-	uint32_t height { 0 };
+	uint32_t x { 0 };
+	uint32_t y { 0 };
+	uint32_t w { 0 };
+	uint32_t h { 0 };
 
 	Rectangle get_bounding_box(Rectangle other) const
 	{
+		if (this->w == 0 || this->h == 0)
+			return other;
+		if (other.w == 0 || other.h == 0)
+			return *this;
 		const auto min_x = BAN::Math::min(x, other.x);
 		const auto min_y = BAN::Math::min(y, other.y);
-		const auto max_x = BAN::Math::max(x + width, other.x + other.width);
-		const auto max_y = BAN::Math::max(y + height, other.y + other.height);
+		const auto max_x = BAN::Math::max(x + w, other.x + other.w);
+		const auto max_y = BAN::Math::max(y + h, other.y + other.h);
 		return Rectangle {
 			.x = min_x,
 			.y = min_y,
-			.width = max_x - min_x,
-			.height = max_y - min_y,
+			.w = max_x - min_x,
+			.h = max_y - min_y,
 		};
 	}
 };
@@ -40,7 +44,7 @@ private:
 	struct Cell;
 
 	void handle_sgr(int32_t value);
-	Rectangle handle_scroll();
+	void handle_scroll();
 	Rectangle handle_csi(char ch);
 	Rectangle putcodepoint(uint32_t codepoint);
 	Rectangle putchar(uint8_t ch);
@@ -60,7 +64,7 @@ private:
 
 	void start_shell();
 
-	Rectangle resize();
+	void resize();
 
 	Rectangle render_cell(uint32_t x, uint32_t y, const Cell&);
 	Rectangle render_visible_area(bool skip_scrollback = false);
@@ -129,6 +133,8 @@ private:
 	ShellInfo m_shell_info;
 	State m_state { State::Normal };
 	CSIInfo m_csi_info;
+
+	Rectangle m_visible {};
 
 	BAN::Vector<Cell> m_cells;
 	uint32_t m_cells_rows { 0 };
