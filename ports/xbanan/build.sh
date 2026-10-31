@@ -2,7 +2,7 @@
 
 NAME='xbanan'
 VERSION='git'
-DOWNLOAD_URL="https://git.bananymous.com/Bananymous/xbanan.git#08822dde75353d3cbbf2fd0675b13a1f7dee6846"
+DOWNLOAD_URL="https://git.bananymous.com/Bananymous/xbanan.git#dde9b4095d74f2c1785035d735b9f3ebb1290cf2"
 DEPENDENCIES=('xorgproto')
 
 configure() {
