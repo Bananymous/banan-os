@@ -39,7 +39,7 @@ int vswprintf(wchar_t* __restrict, size_t, const wchar_t* __restrict, va_list) {
 size_t wcsrtombs(char* __restrict, const wchar_t** __restrict, size_t, mbstate_t* __restrict) { ASSERT_NOT_REACHED(); }
 wchar_t* wcsstr(const wchar_t* __restrict, const wchar_t* __restrict) { ASSERT_NOT_REACHED(); }
 int swscanf(const wchar_t* __restrict, const wchar_t* __restrict, ...) { ASSERT_NOT_REACHED(); }
-
+int wcswidth(const wchar_t*, size_t) { ASSERT_NOT_REACHED(); }
 
 size_t wcrtomb(char* __restrict s, wchar_t ws, mbstate_t* __restrict ps)
 {
