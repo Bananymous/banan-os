@@ -48,6 +48,8 @@ namespace Kernel
 		const sockaddr* address() const { return reinterpret_cast<const sockaddr*>(&m_address); }
 		socklen_t address_len() const { return m_address_len; }
 
+		bool can_broadcast() const { return m_so_broadcast; }
+
 	private:
 		bool can_interface_send_to(const NetworkInterface&, const sockaddr*, socklen_t) const;
 
@@ -59,9 +61,10 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> getpeername_impl(sockaddr*, socklen_t*) override = 0;
 
 	protected:
-		NetworkLayer&    m_network_layer;
-		sockaddr_storage m_address       { .ss_family = AF_UNSPEC, .ss_storage = {} };
-		socklen_t        m_address_len   { 0 };
+		NetworkLayer&     m_network_layer;
+		sockaddr_storage  m_address       { .ss_family = AF_UNSPEC, .ss_storage = {} };
+		socklen_t         m_address_len   { 0 };
+		BAN::Atomic<bool> m_so_broadcast  { false };
 	};
 
 }

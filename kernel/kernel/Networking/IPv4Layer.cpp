@@ -192,6 +192,8 @@ namespace Kernel
 		auto& sockaddr_in = *reinterpret_cast<const struct sockaddr_in*>(address);
 		auto dst_port = BAN::host_to_network_endian(sockaddr_in.sin_port);
 		auto dst_ipv4 = BAN::IPv4Address { sockaddr_in.sin_addr.s_addr };
+		if (dst_ipv4 == INADDR_BROADCAST && !socket.can_broadcast())
+			return BAN::Error::from_errno(EACCES);
 		auto dst_mac = TRY(m_arp_table->get_mac_from_ipv4(*interface, dst_ipv4));
 
 		if (interface->type() == NetworkInterface::Type::Loopback)
@@ -362,18 +364,11 @@ namespace Kernel
 		{
 			SpinLockGuard _(m_bound_socket_lock);
 			auto it = m_bound_sockets.find(dst_port);
-			if (it == m_bound_sockets.end())
+			if (it == m_bound_sockets.end() || !(bound_socket = it->value.lock()))
 			{
 				dprintln_if(DEBUG_IPV4, "no one is listening on port {}", dst_port);
 				return {};
 			}
-			bound_socket = it->value.lock();
-		}
-
-		if (!bound_socket)
-		{
-			dprintln_if(DEBUG_IPV4, "no one is listening on port {}", dst_port);
-			return {};
 		}
 
 		if (bound_socket->protocol() != ipv4_header.protocol)

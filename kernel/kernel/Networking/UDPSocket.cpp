@@ -289,6 +289,9 @@ namespace Kernel
 					case SO_ERROR:
 						result = 0;
 						break;
+					case SO_BROADCAST:
+						result = m_so_broadcast;
+						break;
 					case SO_SNDBUF:
 						result = m_packet_buffer->size();
 						break;
@@ -326,8 +329,18 @@ namespace Kernel
 		switch (level)
 		{
 			case SOL_SOCKET:
-				dwarnln("setsockopt(SOL_SOCKET, {})", option);
-				return BAN::Error::from_errno(ENOPROTOOPT);
+				switch (option)
+				{
+					case SO_BROADCAST:
+						if (value_len != sizeof(int))
+							return BAN::Error::from_errno(EINVAL);
+						m_so_broadcast = *static_cast<const int*>(value);
+						break;
+					default:
+						dwarnln("setsockopt(SOL_SOCKET, {})", option);
+						return BAN::Error::from_errno(ENOPROTOOPT);
+				}
+				break;
 			case IPPROTO_UDP:
 				dwarnln("setsockopt(IPPROTO_UDP, {})", option);
 				return BAN::Error::from_errno(ENOPROTOOPT);
