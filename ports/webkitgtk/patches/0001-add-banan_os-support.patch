@@ -1,0 +1,382 @@
+diff -ruN webkitgtk-2.54.2/Source/bmalloc/mimalloc/mimalloc/src/prim/unix/prim.c webkitgtk-2.54.2-banan_os/Source/bmalloc/mimalloc/mimalloc/src/prim/unix/prim.c
+--- webkitgtk-2.54.2/Source/bmalloc/mimalloc/mimalloc/src/prim/unix/prim.c	2026-07-24 11:02:56.339825900 +0300
++++ webkitgtk-2.54.2-banan_os/Source/bmalloc/mimalloc/mimalloc/src/prim/unix/prim.c	2026-10-31 16:38:40.487727847 +0200
+@@ -743,7 +743,7 @@
+   getrusage(RUSAGE_SELF, &rusage);
+   pinfo->utime = timeval_secs(&rusage.ru_utime);
+   pinfo->stime = timeval_secs(&rusage.ru_stime);
+-#if !defined(__HAIKU__)
++#if !defined(__HAIKU__) && !defined(__banan_os__)
+   pinfo->page_faults = rusage.ru_majflt;
+ #endif
+ #if defined(__HAIKU__)
+@@ -885,7 +885,7 @@
+   return true;
+ }
+ 
+-#elif defined(__APPLE__) || defined(__linux__) || defined(__HAIKU__)   // also for old apple versions < 10.7 (issue #829)
++#elif defined(__APPLE__) || defined(__linux__) || defined(__HAIKU__) || defined(__banan_os__)   // also for old apple versions < 10.7 (issue #829)
+ 
+ #include <sys/types.h>
+ #include <sys/stat.h>
+diff -ruN webkitgtk-2.54.2/Source/JavaScriptCore/heap/BlockDirectory.cpp webkitgtk-2.54.2-banan_os/Source/JavaScriptCore/heap/BlockDirectory.cpp
+--- webkitgtk-2.54.2/Source/JavaScriptCore/heap/BlockDirectory.cpp	2026-07-24 11:02:50.719717500 +0300
++++ webkitgtk-2.54.2-banan_os/Source/JavaScriptCore/heap/BlockDirectory.cpp	2026-10-31 15:49:14.473524675 +0200
+@@ -69,7 +69,7 @@
+     // FIXME: We should figure out a solution for Windows and PlayStation.
+     // QNX doesn't have mincore(), though the information can be had. But since all mapped
+     // pages are resident, does it matter?
+-#if OS(UNIX) && !PLATFORM(PLAYSTATION) && !OS(QNX) && !OS(HAIKU)
++#if OS(UNIX) && !PLATFORM(PLAYSTATION) && !OS(QNX) && !OS(HAIKU) && !OS(BANAN_OS)
+     size_t pageSize = WTF::pageSize();
+     ASSERT(!(MarkedBlock::blockSize % pageSize));
+     auto numberOfPagesInMarkedBlock = MarkedBlock::blockSize / pageSize;
+diff -ruN webkitgtk-2.54.2/Source/JavaScriptCore/runtime/JSCBytecodeCacheVersion.cpp webkitgtk-2.54.2-banan_os/Source/JavaScriptCore/runtime/JSCBytecodeCacheVersion.cpp
+--- webkitgtk-2.54.2/Source/JavaScriptCore/runtime/JSCBytecodeCacheVersion.cpp	2026-07-24 11:02:50.837929200 +0300
++++ webkitgtk-2.54.2-banan_os/Source/JavaScriptCore/runtime/JSCBytecodeCacheVersion.cpp	2026-10-31 15:49:14.473906780 +0200
+@@ -39,6 +39,7 @@
+ #include <wtf/spi/darwin/dyldSPI.h>
+ #elif OS(QNX)
+ #include <sys/link.h>
++#elif OS(BANAN_OS)
+ #else
+ #include <link.h>
+ #endif
+@@ -68,7 +69,7 @@
+         }
+         cacheVersion.construct(0);
+         dataLogLnIf(JSCBytecodeCacheVersionInternal::verbose, "Failed to get UUID for JavaScriptCore framework");
+-#elif OS(UNIX) && !PLATFORM(PLAYSTATION) && !OS(HAIKU) && !OS(QNX)
++#elif OS(UNIX) && !PLATFORM(PLAYSTATION) && !OS(HAIKU) && !OS(QNX) && !OS(BANAN_OS)
+         auto result = ([&] -> std::optional<uint32_t> {
+             Dl_info info { };
+             if (!dladdr(jsFunctionAddr, &info))
+diff -ruN webkitgtk-2.54.2/Source/JavaScriptCore/runtime/MachineContext.h webkitgtk-2.54.2-banan_os/Source/JavaScriptCore/runtime/MachineContext.h
+--- webkitgtk-2.54.2/Source/JavaScriptCore/runtime/MachineContext.h	2026-07-24 11:02:50.857928800 +0300
++++ webkitgtk-2.54.2-banan_os/Source/JavaScriptCore/runtime/MachineContext.h	2026-10-31 16:33:51.932947604 +0200
+@@ -189,7 +189,7 @@
+ #error Unknown Architecture
+ #endif
+ 
+-#elif OS(FUCHSIA) || OS(LINUX) || OS(HURD)
++#elif OS(FUCHSIA) || OS(LINUX) || OS(HURD) || OS(BANAN_OS)
+ 
+ #if CPU(X86_64)
+     return reinterpret_cast<void*&>((uintptr_t&) machineContext.gregs[REG_RSP]);
+@@ -308,7 +308,7 @@
+ #error Unknown Architecture
+ #endif
+ 
+-#elif OS(FUCHSIA) || OS(LINUX) || OS(HURD)
++#elif OS(FUCHSIA) || OS(LINUX) || OS(HURD) || OS(BANAN_OS)
+ 
+ // The following sequence depends on glibc's sys/ucontext.h.
+ #if CPU(X86_64)
+@@ -468,7 +468,7 @@
+ #error Unknown Architecture
+ #endif
+ 
+-#elif OS(FUCHSIA) || OS(LINUX) || OS(HURD)
++#elif OS(FUCHSIA) || OS(LINUX) || OS(HURD) || OS(BANAN_OS)
+ 
+ // The following sequence depends on glibc's sys/ucontext.h.
+ #if CPU(X86_64)
+@@ -644,7 +644,7 @@
+ #error Unknown Architecture
+ #endif
+ 
+-#elif OS(FUCHSIA) || OS(LINUX) || OS(HURD)
++#elif OS(FUCHSIA) || OS(LINUX) || OS(HURD) || OS(BANAN_OS)
+ 
+ // The following sequence depends on glibc's sys/ucontext.h.
+ #if CPU(X86_64)
+@@ -701,7 +701,7 @@
+ #error Unknown Architecture
+ #endif
+ 
+-#elif OS(FUCHSIA) || OS(LINUX) || OS(HURD)
++#elif OS(FUCHSIA) || OS(LINUX) || OS(HURD) || OS(BANAN_OS)
+ 
+ // The following sequence depends on glibc's sys/ucontext.h.
+ #if CPU(X86_64)
+@@ -821,7 +821,7 @@
+ #error Unknown Architecture
+ #endif
+ 
+-#elif OS(FUCHSIA) || OS(LINUX) || OS(HURD)
++#elif OS(FUCHSIA) || OS(LINUX) || OS(HURD) || OS(BANAN_OS)
+ 
+ // The following sequence depends on glibc's sys/ucontext.h.
+ #if CPU(X86_64)
+diff -ruN webkitgtk-2.54.2/Source/WebKit/UIProcess/API/glib/WebKitProtocolHandler.cpp webkitgtk-2.54.2-banan_os/Source/WebKit/UIProcess/API/glib/WebKitProtocolHandler.cpp
+--- webkitgtk-2.54.2/Source/WebKit/UIProcess/API/glib/WebKitProtocolHandler.cpp	2026-07-24 11:02:55.949830800 +0300
++++ webkitgtk-2.54.2-banan_os/Source/WebKit/UIProcess/API/glib/WebKitProtocolHandler.cpp	2026-10-31 15:50:03.436826381 +0200
+@@ -757,7 +757,7 @@
+         if (hasEGLContext)
+             addEGLInfo(hardwareAccelerationObject);
+     } else {
+-#if PLATFORM(GTK)
++#if PLATFORM(GTK) && USE(GBM)
+         addTableRow(hardwareAccelerationObject, "Buffer format"_s, renderBufferDescription(request));
+ #endif
+     }
+diff -ruN webkitgtk-2.54.2/Source/WebKit/UIProcess/gtk/AcceleratedBackingStore.cpp webkitgtk-2.54.2-banan_os/Source/WebKit/UIProcess/gtk/AcceleratedBackingStore.cpp
+--- webkitgtk-2.54.2/Source/WebKit/UIProcess/gtk/AcceleratedBackingStore.cpp	2026-10-22 15:54:12.870838200 +0300
++++ webkitgtk-2.54.2-banan_os/Source/WebKit/UIProcess/gtk/AcceleratedBackingStore.cpp	2026-10-31 17:06:54.941210789 +0200
+@@ -393,6 +393,7 @@
+ }
+ #endif
+ 
++#if USE(GBM)
+ RefPtr<AcceleratedBackingStore::Buffer> AcceleratedBackingStore::BufferEGLImage::create(WebPageProxy& webPage, uint64_t id, uint64_t surfaceID, const IntSize& size, RendererBufferFormat::Usage usage, DMABufBufferAttributes&& dmaBufAttributes)
+ {
+     auto* glDisplay = Display::singleton().glDisplay();
+@@ -407,6 +408,7 @@
+ 
+     return adoptRef(*new BufferEGLImage(webPage, id, surfaceID, size, usage, WTF::move(dmaBufAttributes), image));
+ }
++#endif
+ 
+ AcceleratedBackingStore::BufferEGLImage::BufferEGLImage(WebPageProxy& webPage, uint64_t id, uint64_t surfaceID, const IntSize& size, RendererBufferFormat::Usage usage, DMABufBufferAttributes&& dmaBufAttributes, EGLImage image)
+     : Buffer(webPage, id, surfaceID, size, usage)
+@@ -746,8 +748,10 @@
+     }
+ #endif
+ 
++#if USE(GBM)
+     if (RefPtr buffer = BufferEGLImage::create(*webPage, id, m_surfaceID, size, usage, WTF::move(dmaBufAttributes)))
+         m_buffers.add(id, WTF::move(buffer));
++#endif
+ }
+ 
+ void AcceleratedBackingStore::didCreateSHMBuffer(uint64_t id, ShareableBitmap::Handle&& handle)
+diff -ruN webkitgtk-2.54.2/Source/WTF/wtf/AvailableMemory.cpp webkitgtk-2.54.2-banan_os/Source/WTF/wtf/AvailableMemory.cpp
+--- webkitgtk-2.54.2/Source/WTF/wtf/AvailableMemory.cpp	2026-10-22 15:54:12.842840000 +0300
++++ webkitgtk-2.54.2-banan_os/Source/WTF/wtf/AvailableMemory.cpp	2026-10-31 15:49:14.474747256 +0200
+@@ -50,6 +50,9 @@
+ #include <sys/sysctl.h>
+ #include <sys/types.h>
+ #include <sys/user.h>
++#elif OS(BANAN_OS)
++#include <fcntl.h>
++#include <sys/banan-os.h>
+ #endif
+ #include <unistd.h>
+ #elif OS(WINDOWS)
+@@ -182,7 +185,7 @@
+     return availableMemory;
+ }
+ 
+-#if PLATFORM(IOS_FAMILY) || OS(LINUX) || OS(FREEBSD)
++#if PLATFORM(IOS_FAMILY) || OS(LINUX) || OS(FREEBSD) || OS(BANAN_OS)
+ MemoryStatus memoryStatus()
+ {
+ #if PLATFORM(IOS_FAMILY)
+@@ -204,6 +207,18 @@
+     size_t memoryFootprint = 0;
+     if (!sysctl(mib.data(), mib.size(), &info, &infolen, nullptr, 0))
+         memoryFootprint = static_cast<size_t>(info.ki_rssize) * pageSize();
++#elif OS(BANAN_OS)
++	size_t memoryFootprint = 0;
++
++    int fd = open("/proc/self/meminfo", O_RDONLY);
++    if (fd > 0) {
++		proc_meminfo_t meminfo;
++		ssize_t nread = read(fd, &meminfo, sizeof(meminfo));
++		close(fd);
++
++		if (nread == sizeof(proc_meminfo_t))
++			memoryFootprint = meminfo.phys_pages * meminfo.page_size;
++	}
+ #endif
+ 
+     double percentInUse = static_cast<double>(memoryFootprint) / static_cast<double>(availableMemory());
+diff -ruN webkitgtk-2.54.2/Source/WTF/wtf/AvailableMemory.h webkitgtk-2.54.2-banan_os/Source/WTF/wtf/AvailableMemory.h
+--- webkitgtk-2.54.2/Source/WTF/wtf/AvailableMemory.h	2026-07-24 11:02:54.093866300 +0300
++++ webkitgtk-2.54.2-banan_os/Source/WTF/wtf/AvailableMemory.h	2026-10-31 15:49:14.475063989 +0200
+@@ -32,7 +32,7 @@
+ 
+ WTF_EXPORT_PRIVATE size_t availableMemory();
+ 
+-#if PLATFORM(IOS_FAMILY) || OS(LINUX) || OS(FREEBSD)
++#if PLATFORM(IOS_FAMILY) || OS(LINUX) || OS(FREEBSD) || OS(BANAN_OS)
+ struct MemoryStatus {
+     MemoryStatus(size_t memoryFootprint, double percentAvailableMemoryInUse)
+         : memoryFootprint(memoryFootprint)
+@@ -55,7 +55,7 @@
+ 
+ inline bool isUnderMemoryPressure()
+ {
+-#if PLATFORM(IOS_FAMILY) || OS(LINUX) || OS(FREEBSD)
++#if PLATFORM(IOS_FAMILY) || OS(LINUX) || OS(FREEBSD) || OS(BANAN_OS)
+     constexpr double memoryPressureThreshold = 0.75;
+     return percentAvailableMemoryInUse() > memoryPressureThreshold;
+ #else
+diff -ruN webkitgtk-2.54.2/Source/WTF/wtf/InlineASM.h webkitgtk-2.54.2-banan_os/Source/WTF/wtf/InlineASM.h
+--- webkitgtk-2.54.2/Source/WTF/wtf/InlineASM.h	2026-07-24 11:02:54.113865900 +0300
++++ webkitgtk-2.54.2-banan_os/Source/WTF/wtf/InlineASM.h	2026-10-31 15:49:14.475351178 +0200
+@@ -64,6 +64,7 @@
+     // IBM's own file format
+ #define HIDE_SYMBOL(name) ".lglobl " #name
+ #elif  OS(LINUX)               \
++    || OS(BANAN_OS)            \
+     || OS(FREEBSD)             \
+     || OS(FUCHSIA)             \
+     || OS(HAIKU)               \
+@@ -83,6 +84,7 @@
+ #if OS(DARWIN)
+ #define LOCAL_LABEL_STRING(name) "L" #name
+ #elif  OS(LINUX)               \
++    || OS(BANAN_OS)            \
+     || OS(FREEBSD)             \
+     || OS(FUCHSIA)             \
+     || OS(OPENBSD)             \
+diff -ruN webkitgtk-2.54.2/Source/WTF/wtf/MemoryPressureHandler.cpp webkitgtk-2.54.2-banan_os/Source/WTF/wtf/MemoryPressureHandler.cpp
+--- webkitgtk-2.54.2/Source/WTF/wtf/MemoryPressureHandler.cpp	2026-07-24 11:02:54.117865800 +0300
++++ webkitgtk-2.54.2-banan_os/Source/WTF/wtf/MemoryPressureHandler.cpp	2026-10-31 15:49:14.475750743 +0200
+@@ -67,7 +67,7 @@
+ }
+ 
+ MemoryPressureHandler::MemoryPressureHandler()
+-#if (OS(LINUX) || OS(FREEBSD) || OS(HAIKU) || OS(QNX)) && !OS(ANDROID)
++#if (OS(LINUX) || OS(FREEBSD) || OS(HAIKU) || OS(QNX) || OS(BANAN_OS)) && !OS(ANDROID)
+     : m_holdOffTimer(RunLoop::mainSingleton(), "MemoryPressureHandler::HoldOffTimer"_s, this, &MemoryPressureHandler::holdOffTimerFired)
+ #elif OS(WINDOWS)
+     : m_windowsMeasurementTimer(RunLoop::mainSingleton(), "MemoryPressureHandler::WindowsMeasurementTimer"_s, this, &MemoryPressureHandler::windowsMeasurementTimerFired)
+diff -ruN webkitgtk-2.54.2/Source/WTF/wtf/MemoryPressureHandler.h webkitgtk-2.54.2-banan_os/Source/WTF/wtf/MemoryPressureHandler.h
+--- webkitgtk-2.54.2/Source/WTF/wtf/MemoryPressureHandler.h	2026-07-24 11:02:54.117865800 +0300
++++ webkitgtk-2.54.2-banan_os/Source/WTF/wtf/MemoryPressureHandler.h	2026-10-31 15:49:14.476145978 +0200
+@@ -98,7 +98,7 @@
+     WTF_EXPORT_PRIVATE void NODELETE setMemoryFootprintPollIntervalForTesting(Seconds);
+     WTF_EXPORT_PRIVATE void setShouldUsePeriodicMemoryMonitor(bool);
+ 
+-#if OS(LINUX) || OS(FREEBSD) || OS(HAIKU) || OS(QNX)
++#if OS(LINUX) || OS(FREEBSD) || OS(HAIKU) || OS(QNX) || OS(BANAN_OS)
+     WTF_EXPORT_PRIVATE void triggerMemoryPressureEvent(bool isCritical);
+ #endif
+ 
+@@ -268,7 +268,7 @@
+     HANDLE m_lowMemoryWaitHandle { nullptr };
+ #endif
+ 
+-#if (OS(LINUX) || OS(FREEBSD) || OS(HAIKU) || OS(QNX)) && !OS(ANDROID)
++#if (OS(LINUX) || OS(FREEBSD) || OS(HAIKU) || OS(QNX) || OS(BANAN_OS)) && !OS(ANDROID)
+     RunLoop::Timer m_holdOffTimer;
+     void holdOffTimerFired();
+ #endif
+diff -ruN webkitgtk-2.54.2/Source/WTF/wtf/PlatformGTK.cmake webkitgtk-2.54.2-banan_os/Source/WTF/wtf/PlatformGTK.cmake
+--- webkitgtk-2.54.2/Source/WTF/wtf/PlatformGTK.cmake	2026-10-02 11:27:01.420199000 +0300
++++ webkitgtk-2.54.2-banan_os/Source/WTF/wtf/PlatformGTK.cmake	2026-10-31 15:49:14.480988390 +0200
+@@ -70,7 +70,7 @@
+ 
+         unix/MemoryPressureHandlerUnix.cpp
+     )
+-elseif (CMAKE_SYSTEM_NAME MATCHES "FreeBSD" OR CMAKE_SYSTEM_NAME MATCHES "QNX")
++elseif (CMAKE_SYSTEM_NAME MATCHES "FreeBSD" OR CMAKE_SYSTEM_NAME MATCHES "QNX" OR CMAKE_SYSTEM_NAME MATCHES "banan-os")
+     list(APPEND WTF_SOURCES
+         generic/MemoryFootprintGeneric.cpp
+ 
+diff -ruN webkitgtk-2.54.2/Source/WTF/wtf/PlatformHave.h webkitgtk-2.54.2-banan_os/Source/WTF/wtf/PlatformHave.h
+--- webkitgtk-2.54.2/Source/WTF/wtf/PlatformHave.h	2026-07-27 11:28:18.744560500 +0300
++++ webkitgtk-2.54.2-banan_os/Source/WTF/wtf/PlatformHave.h	2026-10-31 15:49:14.481353663 +0200
+@@ -237,7 +237,7 @@
+ #define HAVE_MACH_MEMORY_ENTRY 1
+ #endif
+ 
+-#if OS(DARWIN) || OS(FUCHSIA) || ((OS(FREEBSD) || OS(HAIKU) || OS(NETBSD) || OS(OPENBSD) || OS(LINUX) || OS(HURD) || OS(QNX)) && (CPU(X86_64) || CPU(ARM) || CPU(ARM64) || CPU(RISCV64)))
++#if OS(DARWIN) || OS(FUCHSIA) || ((OS(FREEBSD) || OS(HAIKU) || OS(NETBSD) || OS(OPENBSD) || OS(LINUX) || OS(HURD) || OS(QNX) || OS(BANAN_OS)) && (CPU(X86_64) || CPU(ARM) || CPU(ARM64) || CPU(RISCV64)))
+ #define HAVE_MACHINE_CONTEXT 1
+ #endif
+ 
+@@ -246,7 +246,7 @@
+ #define HAVE_BACKTRACE_SYMBOLS 1
+ #endif
+ 
+-#if OS(DARWIN) || OS(HAIKU) || OS(LINUX) || OS(HURD)
++#if OS(DARWIN) || OS(HAIKU) || OS(LINUX) || OS(HURD) || OS(BANAN_OS)
+ #define HAVE_DLADDR 1
+ #endif
+ 
+@@ -438,7 +438,7 @@
+ #define HAVE_STACK_BOUNDS_FOR_NEW_THREAD 1
+ #endif
+ 
+-#if !OS(WINDOWS) && !PLATFORM(PLAYSTATION)
++#if !OS(WINDOWS) && !PLATFORM(PLAYSTATION) && !OS(BANAN_OS)
+ #define HAVE_MEMMEM 1
+ #endif
+ 
+diff -ruN webkitgtk-2.54.2/Source/WTF/wtf/PlatformOS.h webkitgtk-2.54.2-banan_os/Source/WTF/wtf/PlatformOS.h
+--- webkitgtk-2.54.2/Source/WTF/wtf/PlatformOS.h	2026-07-24 11:02:54.129865600 +0300
++++ webkitgtk-2.54.2-banan_os/Source/WTF/wtf/PlatformOS.h	2026-10-31 15:49:14.481783888 +0200
+@@ -87,6 +87,11 @@
+ #define WTF_OS_MACOS 1
+ #endif
+ 
++/* OS(BANAN_OS) - banan-os */
++#if defined(__banan_os__)
++#define WTF_OS_BANAN_OS 1
++#endif
++
+ /* OS(FREEBSD) - FreeBSD */
+ #if defined(__FreeBSD__) || defined(__DragonFly__) || defined(__FreeBSD_kernel__)
+ #define WTF_OS_FREEBSD 1
+diff -ruN webkitgtk-2.54.2/Source/WTF/wtf/PlatformRegisters.h webkitgtk-2.54.2-banan_os/Source/WTF/wtf/PlatformRegisters.h
+--- webkitgtk-2.54.2/Source/WTF/wtf/PlatformRegisters.h	2026-07-24 11:02:54.129865600 +0300
++++ webkitgtk-2.54.2-banan_os/Source/WTF/wtf/PlatformRegisters.h	2026-10-31 15:49:14.482053897 +0200
+@@ -39,6 +39,8 @@
+ typedef ucontext_t mcontext_t;
+ #elif OS(QNX)
+ #include <ucontext.h>
++#elif OS(BANAN_OS)
++#include <signal.h>
+ #else
+ #include <sys/ucontext.h>
+ #endif
+diff -ruN webkitgtk-2.54.2/Source/WTF/wtf/posix/FileHandlePOSIX.cpp webkitgtk-2.54.2-banan_os/Source/WTF/wtf/posix/FileHandlePOSIX.cpp
+--- webkitgtk-2.54.2/Source/WTF/wtf/posix/FileHandlePOSIX.cpp	2026-07-24 11:02:54.176727800 +0300
++++ webkitgtk-2.54.2-banan_os/Source/WTF/wtf/posix/FileHandlePOSIX.cpp	2026-10-31 15:49:14.482355823 +0200
+@@ -179,6 +179,10 @@
+ #endif
+     }
+ 
++#if OS(BANAN_OS)
++#define MAP_FILE 0
++#endif
++
+     auto fileData = MmapSpan<uint8_t>::mmap(nullptr, size, pageProtection, MAP_FILE | (mapMode == MappedFileMode::Shared ? MAP_SHARED : MAP_PRIVATE), platformHandle());
+     if (!fileData)
+         return { };
+diff -ruN webkitgtk-2.54.2/Source/WTF/wtf/unix/MemoryPressureHandlerUnix.cpp webkitgtk-2.54.2-banan_os/Source/WTF/wtf/unix/MemoryPressureHandlerUnix.cpp
+--- webkitgtk-2.54.2/Source/WTF/wtf/unix/MemoryPressureHandlerUnix.cpp	2026-07-24 11:02:54.220776300 +0300
++++ webkitgtk-2.54.2-banan_os/Source/WTF/wtf/unix/MemoryPressureHandlerUnix.cpp	2026-10-31 15:49:14.482677375 +0200
+@@ -47,6 +47,9 @@
+ #elif OS(QNX)
+ #include <fcntl.h>
+ #include <sys/procfs.h>
++#elif OS(BANAN_OS)
++#include <fcntl.h>
++#include <sys/banan-os.h>
+ #endif
+ 
+ namespace WTF {
+@@ -142,6 +145,19 @@
+         return 0;
+ 
+     return static_cast<size_t>(info.rss);
++#elif OS(BANAN_OS)
++    int fd = open("/proc/self/meminfo", O_RDONLY);
++    if (fd == -1)
++        return 0;
++
++    proc_meminfo_t meminfo;
++    ssize_t nread = read(fd, &meminfo, sizeof(meminfo));
++    close(fd);
++
++    if (nread != sizeof(proc_meminfo_t))
++        return 0;
++
++    return meminfo.phys_pages * meminfo.page_size;
+ #else
+ #error "Missing a platform specific way of determining the memory usage"
+ #endif
