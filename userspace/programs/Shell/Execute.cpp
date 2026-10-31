@@ -81,6 +81,9 @@ BAN::ErrorOr<Execute::ExecuteResult> Execute::execute_command_no_wait(const Inte
 	{
 		if (command.command.has<Builtin::BuiltinCommand>())
 		{
+			for (int sig = 1; sig <= NSIG; sig++)
+				signal(sig, SIG_DFL);
+
 			auto builtin_ret = command.command.get<Builtin::BuiltinCommand>().execute(*this, command.arguments, command.fd_in, command.fd_out);
 			if (builtin_ret.is_error())
 				exit(builtin_ret.error().get_error_code());
