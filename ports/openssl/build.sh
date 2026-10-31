@@ -1,8 +1,8 @@
 #!/bin/bash ../install.sh
 
 NAME='openssl'
-VERSION='3.6.0'
-DOWNLOAD_URL="https://github.com/openssl/openssl/releases/download/openssl-$VERSION/openssl-$VERSION.tar.gz#b6a5f44b7eb69e3fa35dbf15524405b44837a481d43d81daddde3ff21fcbb8e9"
+VERSION='3.6.5'
+DOWNLOAD_URL="https://github.com/openssl/openssl/releases/download/openssl-$VERSION/openssl-$VERSION.tar.gz#a2157c2830efdec3788939b00c9b0638306d3f0bbb76dc4832ee503bb397df98"
 DEPENDENCIES=('ca-certificates' 'zlib' 'zstd')
 MAKE_INSTALL_TARGETS=('install_sw' 'install_ssldirs')
 
