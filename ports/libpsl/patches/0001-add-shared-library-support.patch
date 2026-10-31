@@ -1,0 +1,31 @@
+diff -ruN libpsl-0.21.5/configure libpsl-0.21.5-banan_os/configure
+--- libpsl-0.21.5/configure	2024-01-13 23:45:00.000000000 +0200
++++ libpsl-0.21.5-banan_os/configure	2026-05-22 16:25:54.512752346 +0300
+@@ -6257,6 +6257,10 @@
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+ 
++banan_os*)
++  lt_cv_deplibs_check_method=pass_all
++  ;;
++
+ beos*)
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+@@ -11947,6 +11951,16 @@
+   esac
+   ;;
+ 
++banan_os*)
++  version_type=linux # correct to gnu/linux during the next big refactor
++  need_lib_prefix=no
++  need_version=no
++  library_names_spec='$libname$release$shared_ext$versuffix $libname$release$shared_ext$major $libname$shared_ext'
++  soname_spec='$libname$release$shared_ext$major'
++  dynamic_linker="$host_os DynamicLoader.so"
++  shlibpath_var=LD_LIBRARY_PATH
++  ;;
++
+ beos*)
+   library_names_spec='$libname$shared_ext'
+   dynamic_linker="$host_os ld.so"
