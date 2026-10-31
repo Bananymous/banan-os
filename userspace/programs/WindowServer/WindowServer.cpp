@@ -554,6 +554,13 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 		return;
 	}
 
+	if (event.pressed() && event.key == LibInput::Key::F3)
+	{
+		m_enable_debug = !m_enable_debug;
+		m_debug_area_count = 0;
+		return;
+	}
+
 	if (!m_focused_window)
 		return;
 
@@ -1633,8 +1640,28 @@ void WindowServer::sync()
 			dir_y = -dir_y;
 	}
 
-	for (size_t i = 0; i < m_damaged_area_count; i++)
-		invalidate(m_damaged_areas[i]);
+	if (!m_enable_debug)
+		for (size_t i = 0; i < m_damaged_area_count; i++)
+			invalidate(m_damaged_areas[i]);
+	else
+	{
+		for (size_t i = 0; i < m_debug_area_count; i++)
+			invalidate(m_debug_areas[i]);
+
+		for (size_t i = 0; i < m_damaged_area_count; i++)
+			for (int32_t y = m_damaged_areas[i].min_y; y < m_damaged_areas[i].max_y; y++)
+				for (int32_t x = m_damaged_areas[i].min_x; x < m_damaged_areas[i].max_x; x++)
+					m_framebuffer.mmap[y * m_framebuffer.width + x] = 0xFF00FF;
+
+		const auto temp_areas = m_debug_areas;
+		const auto temp_count = m_debug_area_count;
+
+		m_debug_areas = m_damaged_areas;
+		m_debug_area_count = m_damaged_area_count;
+
+		for (size_t i = 0; i < temp_count; i++)
+			add_damaged_area(temp_areas[i]);
+	}
 
 	for (size_t i = 0; i < m_damaged_area_count; i++)
 	{

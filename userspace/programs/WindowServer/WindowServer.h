@@ -63,7 +63,8 @@ public:
 	void remove_client_fd(int fd);
 	ClientData& get_client_data(int fd);
 
-	bool is_damaged() const { return m_damaged_area_count > 0 || m_is_bouncing_window; }
+	bool debug_enabled() const { return m_enable_debug; }
+	bool needs_sync() const { return m_damaged_area_count > 0 || m_debug_area_count > 0 || m_is_bouncing_window; }
 	bool is_stopped() const { return m_is_stopped; }
 
 private:
@@ -100,8 +101,13 @@ private:
 	const int32_t m_corner_radius;
 
 	static constexpr size_t m_max_damaged_areas = 32;
+
 	size_t m_damaged_area_count { 0 };
 	BAN::Array<Rectangle, m_max_damaged_areas> m_damaged_areas;
+
+	bool m_enable_debug { false };
+	size_t m_debug_area_count { 0 };
+	BAN::Array<Rectangle, m_max_damaged_areas> m_debug_areas;
 
 	// NOTE: same size as framebuffer
 	BAN::Vector<uint32_t> m_background_image;

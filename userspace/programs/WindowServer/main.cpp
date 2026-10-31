@@ -276,38 +276,41 @@ int main()
 		exit(1);
 	}
 
-	const auto get_current_us =
-		[]() -> uint64_t
-		{
-			timespec current_ts;
-			clock_gettime(CLOCK_MONOTONIC, &current_ts);
-			return (current_ts.tv_sec * 1'000'000) + (current_ts.tv_nsec / 1000);
-		};
+	const auto get_current_ns = []() -> uint64_t {
+		timespec current_ts;
+		clock_gettime(CLOCK_MONOTONIC, &current_ts);
+		return current_ts.tv_sec * 1'000'000'000ull + current_ts.tv_nsec;
+	};
 
-	constexpr uint64_t sync_interval_us = 1'000'000 / 60;
-	uint64_t last_sync_us = get_current_us() - sync_interval_us;
+	uint64_t next_sync_ns = get_current_ns();
 	while (!window_server.is_stopped())
 	{
+		timespec timeout;
 		timespec* ptimeout = nullptr;
-
-		timespec timeout = {};
-		if (window_server.is_damaged())
+		if (window_server.needs_sync())
 		{
-			if (const auto current_us = get_current_us(); current_us - last_sync_us > sync_interval_us)
+			if (const auto current_ns = get_current_ns(); current_ns >= next_sync_ns)
 			{
 				window_server.sync();
 
-				const auto full_intervals = (current_us - last_sync_us) / sync_interval_us;
-				last_sync_us += full_intervals * sync_interval_us;
+				const auto sync_interval_ns = window_server.debug_enabled()
+					? 1'000'000'000ull / 30
+					: 1'000'000'000ull / 60;
+				const auto intervals = (current_ns - next_sync_ns + sync_interval_ns - 1) / sync_interval_ns;
+				next_sync_ns += intervals * sync_interval_ns;
 			}
 
-			if (const auto current_us = get_current_us(); current_us - last_sync_us < sync_interval_us)
-				timeout.tv_nsec = (sync_interval_us - (current_us - last_sync_us)) * 1000;
-			ptimeout = &timeout;
+			if (window_server.needs_sync())
+			{
+				timeout = {};
+				if (const auto current_ns = get_current_ns(); current_ns < next_sync_ns)
+					timeout.tv_nsec = next_sync_ns - current_ns;
+				ptimeout = &timeout;
+			}
 		}
 
 		epoll_event events[16];
-		int epoll_events = epoll_pwait2(g_epoll_fd, events, 16, ptimeout, nullptr);
+		const int epoll_events = epoll_pwait2(g_epoll_fd, events, 16, ptimeout, nullptr);
 		if (epoll_events == -1 && errno != EINTR)
 		{
 			dwarnln("epoll_pwait2: {}", strerror(errno));
