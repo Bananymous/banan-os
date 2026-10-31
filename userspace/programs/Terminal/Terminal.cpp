@@ -161,6 +161,9 @@ void Terminal::run()
 
 	m_window->set_min_size(m_font.width() * 8, m_font.height() * 2);
 
+	m_cached_cols = m_window->width()  / m_font.width();
+	m_cached_rows = m_window->height() / m_font.height();
+
 	m_visible = {
 		.x = m_window->width()  % m_font.width()  / 2,
 		.y = m_window->height() % m_font.height() / 2,
@@ -174,8 +177,6 @@ void Terminal::run()
 		.bg_color = s_default_bg_color,
 		.bold = false,
 	}));
-	m_cells_rows = rows();
-	m_cells_cols = cols();
 
 	MUST(m_soft_wraps.resize(rows(), false));
 
@@ -200,6 +201,8 @@ void Terminal::run()
 	Rectangle invalidate;
 
 	m_window->set_resize_window_event_callback([&] {
+		handle_resize();
+
 		m_visible = {
 			.x = m_window->width()  % m_font.width()  / 2,
 			.y = m_window->height() % m_font.height() / 2,
@@ -209,8 +212,6 @@ void Terminal::run()
 
 		m_is_selecting = false;
 		m_selection = {};
-
-		resize();
 
 		m_window->texture().fill(s_default_bg_color);
 		render_visible_area();
@@ -1240,9 +1241,11 @@ Rectangle Terminal::putchar(uint8_t ch)
 	return putcodepoint(codepoint);
 }
 
-void Terminal::resize()
+void Terminal::handle_resize()
 {
-	if (cols() == m_cells_cols && rows() == m_cells_rows)
+	const uint32_t new_cols = m_window->width()  / m_font.width();
+	const uint32_t new_rows = m_window->height() / m_font.height();
+	if (m_cached_cols == new_cols && m_cached_rows == new_rows)
 		return;
 
 	const auto is_cell_visible = [](const Cell& cell) {
@@ -1258,14 +1261,14 @@ void Terminal::resize()
 
 	uint32_t cur_x = 0, cur_y = 0;
 
-	if (cols() != m_cells_cols && !m_scrollback->empty())
+	if (new_cols != m_cached_cols && !m_scrollback->empty())
 	{
 		auto new_scrollback_uptr = MUST(BAN::UniqPtr<Scrollback>::create());
 		auto& new_scrollback = *new_scrollback_uptr;
 
 		const auto push_empty_line = [&] {
 			if (!new_scrollback.full())
-				new_scrollback.push({ .cells = { cols(), blank_cell }, .soft_wrap = false });
+				new_scrollback.push({ .cells = { new_cols, blank_cell }, .soft_wrap = false });
 			else
 			{
 				auto temp = BAN::move(new_scrollback.front());
@@ -1279,7 +1282,7 @@ void Terminal::resize()
 		};
 
 		const auto put_cell = [&](const Cell& cell) {
-			if (cur_x >= cols())
+			if (cur_x >= new_cols)
 			{
 				new_scrollback.back().soft_wrap = true;
 				push_empty_line();
@@ -1325,17 +1328,17 @@ void Terminal::resize()
 	}
 
 	BAN::Vector<Cell> new_cells;
-	MUST(new_cells.resize(rows() * cols(), blank_cell));
+	MUST(new_cells.resize(new_cols * new_rows, blank_cell));
 
 	BAN::Vector<bool> new_soft_wraps;
-	MUST(new_soft_wraps.resize(rows(), false));
+	MUST(new_soft_wraps.resize(new_rows, false));
 
 	auto new_cursor = Cursor {};
 
 	const auto put_cell = [&](const Cell& cell) {
 		if (cur_y == UINT32_MAX)
 		{
-			if (cur_x < cols())
+			if (cur_x < new_cols)
 			{
 				m_scrollback->back().cells[cur_x++] = cell;
 				return;
@@ -1346,46 +1349,46 @@ void Terminal::resize()
 			cur_y = 0;
 		}
 
-		if (cur_x >= cols())
+		if (cur_x >= new_cols)
 		{
 			new_soft_wraps[cur_y] = true;
 			cur_x = 0;
 			cur_y++;
 		}
 
-		while (cur_y >= rows())
+		while (cur_y >= new_rows)
 		{
 			if (!m_scrollback->full())
-				m_scrollback->push({ .cells = cols(), .soft_wrap = false });
+				m_scrollback->push({ .cells = new_cols, .soft_wrap = false });
 			else
 			{
 				auto temp = BAN::move(m_scrollback->front());
 				m_scrollback->pop();
 				m_scrollback->push(BAN::move(temp));
 			}
-			memcpy(m_scrollback->back().cells.data(), new_cells.data(), cols() * sizeof(Cell));
+			memcpy(m_scrollback->back().cells.data(), new_cells.data(), new_cols * sizeof(Cell));
 			m_scrollback->back().soft_wrap = new_soft_wraps[0];
 
-			memmove(&new_cells[0], &new_cells[cols()], (rows() - 1) * cols() * sizeof(Cell));
-			for (size_t i = (rows() - 1) * cols(); i < rows() * cols(); i++)
+			memmove(&new_cells[0], &new_cells[new_cols], (new_rows - 1) * new_cols * sizeof(Cell));
+			for (size_t i = (new_rows - 1) * new_cols; i < new_rows * new_cols; i++)
 				new_cells[i] = blank_cell;
-			memmove(new_soft_wraps.data(), new_soft_wraps.data() + 1, rows() - 1);
-			new_soft_wraps[rows() - 1] = false;
+			memmove(new_soft_wraps.data(), new_soft_wraps.data() + 1, new_rows - 1);
+			new_soft_wraps[new_rows - 1] = false;
 
 			if (new_cursor.y > 0)
 				new_cursor.y--;
 			cur_y--;
 		}
 
-		new_cells[cur_y * cols() + cur_x++] = cell;
+		new_cells[cur_y * new_cols + cur_x++] = cell;
 	};
 
 	const size_t visible_height = ({
-		size_t height = m_cells_rows;
+		size_t height = m_cached_rows;
 		for (; height > 0; height--)
 		{
 			bool is_visible = false;
-			for (size_t i = (height - 1) * m_cells_cols; i < m_cells_rows * m_cells_cols && !is_visible; i++)
+			for (size_t i = (height - 1) * m_cached_cols; i < m_cached_cols * m_cached_rows && !is_visible; i++)
 				is_visible = is_cell_visible(m_cells[i]);
 			if (is_visible)
 				break;
@@ -1395,18 +1398,18 @@ void Terminal::resize()
 
 	for (size_t y = 0; y < visible_height; y++)
 	{
-		for (size_t x = 0; x < m_cells_cols; x++)
+		for (size_t x = 0; x < m_cached_cols; x++)
 		{
 			if (x == m_cursor.x && y == m_cursor.y)
 				new_cursor = { .x = cur_x, .y = cur_y };
 
-			const auto& cell = m_cells[y * m_cells_cols + x];
+			const auto& cell = m_cells[y * m_cached_cols + x];
 			if (!is_cell_visible(cell))
 				continue;
 
 			for (size_t xoff = 1; xoff <= x; xoff++)
 			{
-				const auto& prev_cell = m_cells[y * m_cells_cols + x - xoff];
+				const auto& prev_cell = m_cells[y * m_cached_cols + x - xoff];
 				if (is_cell_visible(prev_cell))
 					break;
 				put_cell(prev_cell);
@@ -1436,10 +1439,12 @@ void Terminal::resize()
 		put_cell(blank_cell);
 	}
 
+	m_cached_cols = new_cols;
+	m_cached_rows = new_rows;
+
 	m_cells = BAN::move(new_cells);
-	m_cells_rows = rows();
-	m_cells_cols = cols();
 	m_soft_wraps = BAN::move(new_soft_wraps);
+
 	m_cursor = new_cursor;
 
 	m_visual_scroll = BAN::Math::min(m_visual_scroll, m_scrollback->size());

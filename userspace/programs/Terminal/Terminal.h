@@ -37,8 +37,8 @@ class Terminal
 public:
 	void run();
 
-	uint32_t cols() const { return m_window->width() / m_font.width(); }
-	uint32_t rows() const { return m_window->height() / m_font.height(); }
+	uint32_t cols() const { return m_cached_cols; }
+	uint32_t rows() const { return m_cached_rows; }
 
 private:
 	struct Cell;
@@ -64,7 +64,7 @@ private:
 
 	void start_shell();
 
-	void resize();
+	void handle_resize();
 
 	Rectangle render_cell(uint32_t x, uint32_t y, const Cell&);
 	Rectangle render_visible_area(bool skip_scrollback = false);
@@ -130,15 +130,18 @@ private:
 private:
 	BAN::UniqPtr<LibGUI::Window> m_window;
 	LibFont::Font m_font;
+
 	ShellInfo m_shell_info;
+
+	uint32_t m_cached_cols { 0 };
+	uint32_t m_cached_rows { 0 };
+
 	State m_state { State::Normal };
 	CSIInfo m_csi_info;
 
 	Rectangle m_visible {};
 
 	BAN::Vector<Cell> m_cells;
-	uint32_t m_cells_rows { 0 };
-	uint32_t m_cells_cols { 0 };
 
 	BAN::Vector<bool> m_soft_wraps;
 
