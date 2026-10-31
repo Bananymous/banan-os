@@ -150,7 +150,7 @@ void send_dhcp_discover(int socket, BAN::MACAddress mac_address)
 
 	dhcp_packet.options[idx++] = 0xFF;
 
-	send_dhcp_packet(socket, dhcp_packet, BAN::IPv4Address { 0xFFFFFFFF });
+	send_dhcp_packet(socket, dhcp_packet, BAN::IPv4Address { INADDR_BROADCAST });
 }
 
 void send_dhcp_request(int socket, BAN::MACAddress mac_address, BAN::IPv4Address offered_ipv4, BAN::IPv4Address server_ipv4)
@@ -304,35 +304,38 @@ BAN::Optional<DHCPPacketInfo> read_dhcp_packet(int socket)
 
 int main()
 {
-	int socket = ::socket(AF_INET, SOCK_DGRAM, 0);
+	const int socket = ::socket(AF_INET, SOCK_DGRAM, 0);
 	if (socket == -1)
 	{
 		perror("socket");
 		return 1;
 	}
 
-	sockaddr_in client_addr;
-	client_addr.sin_family = AF_INET;
-	client_addr.sin_port = htons(68);
-	client_addr.sin_addr.s_addr = INADDR_ANY;
-
-	if (bind(socket, (sockaddr*)&client_addr, sizeof(client_addr)) == -1)
+	const sockaddr_in client_addr {
+		.sin_family = AF_INET,
+		.sin_port = htons(68),
+		.sin_addr = { .s_addr = INADDR_ANY },
+		.sin_zero = {},
+	};
+	if (bind(socket, reinterpret_cast<const sockaddr*>(&client_addr), sizeof(client_addr)) == -1)
 	{
 		perror("bind");
 		return 1;
 	}
 
-	auto mac_address = get_mac_address(socket);
-#if DEBUG_DHCP
-	dprintln("MAC: {}", mac_address);
-#endif
+	if (const int value = 1; setsockopt(socket, SOL_SOCKET, SO_BROADCAST, &value, sizeof(int)) == -1)
+	{
+		perror("setsockopt");
+		return 1;
+	}
+
+	const auto mac_address = get_mac_address(socket);
+	dprintln_if(DEBUG_DHCP, "MAC: {}", mac_address);
 
 	send_dhcp_discover(socket, mac_address);
-#if DEBUG_DHCP
-	dprintln("DHCPDISCOVER sent");
-#endif
+	dprintln_if(DEBUG_DHCP, "DHCPDISCOVER sent");
 
-	auto dhcp_offer = read_dhcp_packet(socket);
+	const auto dhcp_offer = read_dhcp_packet(socket);
 	if (!dhcp_offer.has_value())
 		return 1;
 	if (dhcp_offer->message_type != DHCPOFFER)
@@ -350,11 +353,9 @@ int main()
 #endif
 
 	send_dhcp_request(socket, mac_address, dhcp_offer->address, dhcp_offer->server);
-#if DEBUG_DHCP
-	dprintln("DHCPREQUEST sent");
-#endif
+	dprintln_if(DEBUG_DHCP, "DHCPREQUEST sent");
 
-	auto dhcp_ack = read_dhcp_packet(socket);
+	const auto dhcp_ack = read_dhcp_packet(socket);
 	if (!dhcp_ack.has_value())
 		return 1;
 	if (dhcp_ack->message_type != DHCPACK)
