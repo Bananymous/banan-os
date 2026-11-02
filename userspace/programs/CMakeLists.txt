@@ -52,6 +52,7 @@ set(USERSPACE_PROGRAMS
 	top
 	tr
 	true
+	truncate
 	TaskBar
 	Terminal
 	touch
