@@ -1,0 +1,41 @@
+diff -ruN mesa-26.1.4/meson.build mesa-26.1.4-banan_os/meson.build
+--- mesa-26.1.4/meson.build	2026-07-01 17:16:13.000000000 +0300
++++ mesa-26.1.4-banan_os/meson.build	2026-07-05 12:36:39.810545892 +0300
+@@ -156,7 +156,7 @@
+ 
+ with_any_opengl = with_opengl or with_gles1 or with_gles2
+ 
+-system_has_kms_drm = ['openbsd', 'netbsd', 'freebsd', 'gnu/kfreebsd', 'dragonfly', 'linux', 'sunos', 'android', 'managarm'].contains(host_machine.system())
++system_has_kms_drm = ['openbsd', 'netbsd', 'freebsd', 'gnu/kfreebsd', 'dragonfly', 'linux', 'sunos', 'android', 'managarm', 'banan_os'].contains(host_machine.system())
+ 
+ gallium_drivers = get_option('gallium-drivers')
+ if gallium_drivers.contains('auto')
+diff -ruN mesa-26.1.4/src/gallium/frontends/dri/drisw.c mesa-26.1.4-banan_os/src/gallium/frontends/dri/drisw.c
+--- mesa-26.1.4/src/gallium/frontends/dri/drisw.c	2026-07-01 17:16:13.000000000 +0300
++++ mesa-26.1.4-banan_os/src/gallium/frontends/dri/drisw.c	2026-07-05 12:36:40.392717334 +0300
+@@ -43,12 +43,12 @@
+ #include "dri_helpers.h"
+ #include "dri_query_renderer.h"
+ 
+-#include "util/libsync.h"
+-
+ #ifdef HAVE_LIBDRM
+ #include <xf86drm.h>
+ #endif
+ 
++#include "util/libsync.h"
++
+ DEBUG_GET_ONCE_BOOL_OPTION(swrast_no_present, "SWRAST_NO_PRESENT", false);
+ 
+ static inline void
+diff -ruN mesa-26.1.4/src/glx/drisw_glx.c mesa-26.1.4-banan_os/src/glx/drisw_glx.c
+--- mesa-26.1.4/src/glx/drisw_glx.c	2026-07-01 17:16:13.000000000 +0300
++++ mesa-26.1.4-banan_os/src/glx/drisw_glx.c	2026-07-05 12:36:40.748941796 +0300
+@@ -23,6 +23,7 @@
+ 
+ #if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
+ 
++#include <stddef.h>
+ #include <xcb/xcb.h>
+ #include <xcb/xproto.h>
+ #include <xcb/shm.h>
