@@ -62,28 +62,28 @@ install_grub_uefi() {
 }
 
 install_banan_legacy() {
-	root_disk_info=$(fdisk -x "$BANAN_DISK_IMAGE_PATH" | tr -s ' ')
-	root_part_guid=$(echo "$root_disk_info" | grep "^$BANAN_DISK_IMAGE_PATH" | head -2 | tail -1 | cut -d' ' -f6)
+	root_part_info=($(fdisk -x "$BANAN_DISK_IMAGE_PATH" | grep root))
+	root_part_guid="${root_part_info[5]}"
 
-	installer_build_dir=$BANAN_ROOT_DIR/bootloader/installer/build/$BANAN_ARCH
-	bootloader_elf=$BANAN_BUILD_DIR/bootloader/bios/bootloader
+	installer_build_dir="$BANAN_ROOT_DIR/bootloader/installer/build/$BANAN_ARCH"
+	bootloader_elf="$BANAN_BUILD_DIR/bootloader/bios/bootloader"
 
-	if [ ! -f $bootloader_elf ]; then
+	if [ ! -f "$bootloader_elf" ]; then
 		echo "You must build the bootloader first" >&2
 		exit 1
 	fi
 
-	if [ ! -d $installer_build_dir ]; then
-		mkdir -p $installer_build_dir
-		cd $installer_build_dir
-		$BANAN_CMAKE -G Ninja ../..
+	if [ ! -d "$installer_build_dir" ]; then
+		mkdir -p "$installer_build_dir"
+		cd "$installer_build_dir"
+		"$BANAN_CMAKE" -G Ninja ../..
 	fi
 
-	cd $installer_build_dir
+	cd "$installer_build_dir"
 	ninja
 
 	echo installing bootloader
-	$installer_build_dir/banan_os-bootloader-installer "$bootloader_elf" "$BANAN_DISK_IMAGE_PATH" "$root_part_guid"
+	"$installer_build_dir/banan_os-bootloader-installer" "$bootloader_elf" "$BANAN_DISK_IMAGE_PATH" "$root_part_guid"
 }
 
 install_banan_uefi() {
