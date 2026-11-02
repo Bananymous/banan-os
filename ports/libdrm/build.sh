@@ -3,7 +3,6 @@
 NAME='libdrm'
 VERSION='2.4.134'
 DOWNLOAD_URL="https://dri.freedesktop.org/libdrm/libdrm-$VERSION.tar.xz#ac5e74d157830eb8bee44c6a6bf3ad49774ef0dd2a72bdad74a8f20308b52a95"
-_DEPENDENCIES=('mesa')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
 	'-Dbuildtype=release'

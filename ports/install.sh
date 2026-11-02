@@ -282,33 +282,68 @@ rm -f "$BANAN_SYSROOT/usr/share/info/dir"
 
 grep -qsxF "$NAME-$VERSION" "$installed_file" || echo "$NAME-$VERSION" >> "$installed_file"
 
-if (( $PACKAGE )); then
-	mkdir -p "$LOCAL_PACKAGE_ROOT" || exit 1
+(( $PACKAGE )) || exit 0
 
-	version_string=$(cd .. && ../get-version-string.sh)
+mkdir -p "$LOCAL_PACKAGE_ROOT" || exit 1
+mkdir -p "$LOCAL_PACKAGE_REPO" || exit 1
 
-	package_dir="$LOCAL_PACKAGE_ROOT/$version_string"
+version_string=$(cd .. && ../get-version-string.sh)
 
-	rm -rf "$package_dir"
-	mkdir "$package_dir"
+package_dir="$LOCAL_PACKAGE_ROOT/$version_string"
+rm -rf "$package_dir"
+mkdir "$package_dir"
 
-	dependencies=''
+DESTDIR="$package_dir"
+pre_install
+install
+post_install
+
+test -d "$DESTDIR/usr/lib"     && find "$DESTDIR/usr/lib"     -name '*.la' -delete
+test -d "$DESTDIR/usr/libexec" && find "$DESTDIR/usr/libexec" -name '*.la' -delete
+rm -f "$DESTDIR/usr/share/info/dir"
+
+create_xbps_package() {
+	local version_string="$1"
+	local package_dir="$2"
+
+	local dependencies=''
 	for dep in "${DEPENDENCIES[@]}"; do
 		dependencies+="$dep>=0 "
 	done
 
-	DESTDIR="$package_dir"
-	pre_install
-	install
-	post_install
-
-	test -d "$DESTDIR/usr/lib"     && find "$DESTDIR/usr/lib"     -name '*.la' -delete
-	test -d "$DESTDIR/usr/libexec" && find "$DESTDIR/usr/libexec" -name '*.la' -delete
-	rm -f "$DESTDIR/usr/share/info/dir"
-
-	mkdir -p "$LOCAL_PACKAGE_REPO" || exit 1
-	cd "$LOCAL_PACKAGE_REPO" || exit 1
-
+	pushd "$LOCAL_PACKAGE_REPO" >/dev/null || exit 1
 	run_xbps xbps-create -A "$BANAN_ARCH" -n "${version_string%.*}" -s "$DESCRIPTION" -D "$dependencies" "$package_dir"
 	run_xbps xbps-rindex -af "$version_string.xbps"
+	popd
+}
+
+if (( "${#SPLIT_PACKAGES[@]}" > 0 )); then
+	for split in "${SPLIT_PACKAGES[@]}"; do
+		split_version_string=$(cd .. && SPLIT_NAME="$split" ../get-version-string.sh)
+
+		split_package_dir="$LOCAL_PACKAGE_ROOT/$split_version_string"
+		rm -rf "$split_package_dir"
+		mkdir "$split_package_dir"
+
+		get_split_info "$split"
+
+		for file in "${WANTED_FILES[@]}"; do
+			mkdir -p "$split_package_dir/${file%/*}" || exit 1
+			mv "$package_dir/$file" "$split_package_dir/$file" || exit 1
+		done
+
+		create_xbps_package "$split_version_string" "$split_package_dir"
+	done
+
+	unmapped_files=( $(find "$package_dir" \! -type d ))
+	if [[ -n "$unmapped_files" ]]; then
+		echo "No split package wanted files: ${unmapped_files[@]}" >&2
+		exit 1
+	fi
+
+	rm -rf "$package_dir"/*
+
+	DEPENDENCIES=("${SPLIT_PACKAGES[@]}")
 fi
+
+create_xbps_package "$version_string" "$package_dir"

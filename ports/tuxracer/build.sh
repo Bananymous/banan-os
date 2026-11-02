@@ -3,7 +3,7 @@
 NAME='tuxracer'
 VERSION='0.61'
 DOWNLOAD_URL="http://download.sourceforge.net/tuxracer/tuxracer-$VERSION.tar.gz#a311d09080598fe556134d4b9faed7dc0c2ed956ebb10d062e5d4df022f91eff"
-DEPENDENCIES=('tcl' 'mesa' 'glu' 'sdl12-compat' 'SDL_mixer')
+DEPENDENCIES=('tcl' 'mesa-osmesa' 'glu' 'sdl12-compat' 'SDL_mixer')
 CONFIGURE_OPTIONS=(
 	'--with-data-dir=/usr/share/tuxracer'
 	"--with-sdl-prefix=$BANAN_SYSROOT/usr"

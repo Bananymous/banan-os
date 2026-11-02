@@ -3,7 +3,7 @@
 NAME='glu'
 VERSION='9.0.3'
 DOWNLOAD_URL="https://archive.mesa3d.org/glu/glu-$VERSION.tar.xz#bd43fe12f374b1192eb15fe20e45ff456b9bc26ab57f0eee919f96ca0f8a330f"
-DEPENDENCIES=('mesa')
+DEPENDENCIES=('mesa-osmesa')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
 	'-Dbuildtype=release'
