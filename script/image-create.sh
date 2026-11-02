@@ -27,7 +27,7 @@ MOUNT_DIR="$BANAN_BUILD_DIR/mount"
 mkdir -p $MOUNT_DIR
 
 # create empty disk image
-DISK_SIZE=$((500 * 1024 * 1024))
+DISK_SIZE=$((4 * 1024 * 1024 * 1024))
 truncate -s 0 "$BANAN_DISK_IMAGE_PATH"
 truncate -s $DISK_SIZE "$BANAN_DISK_IMAGE_PATH"
 
@@ -46,21 +46,21 @@ else
 		mkpart root ext2 2M 100%
 fi
 
-# create loop device
-LOOP_DEV=$(sudo losetup --show  -fP "$BANAN_DISK_IMAGE_PATH" || exit 1 )
-PARTITION1=${LOOP_DEV}p1
-PARTITION2=${LOOP_DEV}p2
-if [ ! -b $PARTITION1 ] || [ ! -b $PARTITION2 ]; then
-	echo "Failed to probe partitions for banan disk image." >&2
-	sudo losetup -d $LOOP_DEV
+root_bounds=($(parted "$BANAN_DISK_IMAGE_PATH" unit B print 2>/dev/null | grep root))
+if (( "${#root_bounds[@]}" < 5 )); then
+	echo "Unexpected parted output format: ${root_bounds[@]}" >&2
 	exit 1
 fi
 
-# create root filesystem
-sudo mkfs.ext2 -q $PARTITION2
+root_blksize=1024
+root_offset="${root_bounds[1]::-1}"
+root_blocks=$(("${root_bounds[3]::-1}" / "$root_blksize"))
 
-# delete loop device
-sudo losetup -d $LOOP_DEV
+mkfs.ext2 -q \
+	-b "$root_blksize" \
+	-E offset="$root_offset" \
+	"$BANAN_DISK_IMAGE_PATH" \
+	"$root_blocks" || exit 1
 
 # install bootloader
 $BANAN_SCRIPT_DIR/install-bootloader.sh || exit 1
