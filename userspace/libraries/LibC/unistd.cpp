@@ -823,7 +823,12 @@ int ttyname_r(int fildes, char* name, size_t namesize)
 
 int access(const char* path, int amode)
 {
-	return syscall(SYS_ACCESS, path, amode);
+	return faccessat(AT_FDCWD, path, amode, 0);
+}
+
+int faccessat(int fd, const char* path, int amode, int flag)
+{
+	return syscall(SYS_FACCESSAT, fd, path, amode, flag);
 }
 
 unsigned alarm(unsigned seconds)

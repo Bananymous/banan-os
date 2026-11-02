@@ -1531,7 +1531,7 @@ namespace Kernel
 		return TRY(m_open_file_descriptors.write(fd, BAN::ConstByteSpan(static_cast<const uint8_t*>(buffer), count)));
 	}
 
-	BAN::ErrorOr<long> Process::sys_access(const char* user_path, int amode)
+	BAN::ErrorOr<long> Process::sys_faccessat(int fd, const char* user_path, int amode, int flag)
 	{
 		int flags = 0;
 		if (amode & F_OK)
@@ -1550,10 +1550,13 @@ namespace Kernel
 		LockGuard _(m_process_lock);
 
 		auto credentials = m_credentials;
-		credentials.set_euid(credentials.ruid());
-		credentials.set_egid(credentials.rgid());
+		if (!(flag & AT_EACCESS))
+		{
+			credentials.set_euid(credentials.ruid());
+			credentials.set_egid(credentials.rgid());
+		}
 
-		auto relative_parent = TRY(find_relative_parent(AT_FDCWD, path));
+		auto relative_parent = TRY(find_relative_parent(fd, path));
 		TRY(VirtualFileSystem::get().file_from_relative_path(m_root_file.inode, relative_parent, credentials, path, flags));
 
 		return 0;

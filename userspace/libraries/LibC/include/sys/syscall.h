@@ -82,7 +82,7 @@ __BEGIN_DECLS
 	O(SYS_SETSOCKOPT,		setsockopt)		\
 	O(SYS_REALPATH,			realpath)		\
 	O(SYS_TTYNAME,			ttyname)		\
-	O(SYS_ACCESS,			access)			\
+	O(SYS_FACCESSAT,		faccessat)		\
 	O(SYS_SIGACTION,		sigaction)		\
 	O(SYS_SIGPENDING,		sigpending)		\
 	O(SYS_SIGPROCMASK,		sigprocmask)	\

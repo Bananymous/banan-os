@@ -106,7 +106,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_close(int fd);
 		BAN::ErrorOr<long> sys_read(int fd, void* buffer, size_t count);
 		BAN::ErrorOr<long> sys_write(int fd, const void* buffer, size_t count);
-		BAN::ErrorOr<long> sys_access(const char* path, int amode);
+		BAN::ErrorOr<long> sys_faccessat(int fd, const char* path, int amode, int flag);
 		BAN::ErrorOr<long> sys_mkdirat(int fd, const char* path, mode_t);
 		BAN::ErrorOr<long> sys_mkfifoat(int fd, const char* path, mode_t);
 		BAN::ErrorOr<long> sys_hardlinkat(int fd1, const char* path1, int fd2, const char* path2, int flag);
