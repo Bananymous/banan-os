@@ -43,10 +43,10 @@ build_toolchain () {
 }
 
 build_tools() {
-	perm_tool="$BANAN_TOOLS_DIR/update-image-perms"
-	if [ ! -f "$perm_tool" ] || [ "$perm_tool" -ot "$perm_tool.c" ]; then
-		gcc -O2 -Wall -Wextra -Werror -o "$perm_tool" "$perm_tool.c" || exit 1
-	fi
+	pushd "$BANAN_TOOLS_DIR/ext2-writer" >/dev/null || exit 1
+	[ -d build ] || cmake -B build -S .             || exit 1
+	cmake --build build --parallel                  || exit 1
+	popd >/dev/null                                 || exit 1
 }
 
 create_image () {

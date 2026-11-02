@@ -96,7 +96,7 @@ To build the toolchain for this os. You can run the following command.
 ./bos toolchain
 ```
 
-To build the os itself you can run one of the following commands. You will need root access for disk image creation/modification.
+To build the os itself you can run one of the following commands.
 ```sh
 ./bos qemu
 ./bos qemu-nographic
@@ -112,7 +112,7 @@ You can also build the kernel or disk image without running it:
 
 To build for other architectures set environment variable BANAN\_ARCH=*arch* (e.g. BANAN\_ARCH=i686).
 
-To change the bootloader you can set environment variable BANAN\_BOOTLOADER; supported values are BANAN (my custom bootloader) and GRUB.
+To change the bootloader you can set environment variable BANAN\_BOOTLOADER; supported values are BANAN (my custom bootloader) and GRUB. The build system will ask for sudo password when installing GRUB.
 
 To run with UEFI set environment variable BANAN\_UEFI\_BOOT=1. You will also have to set OVMF\_PATH to the correct OVMF (default */usr/share/ovmf/x64/OVMF.fd*).
 
