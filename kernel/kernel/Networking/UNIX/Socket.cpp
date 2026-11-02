@@ -120,6 +120,12 @@ namespace Kernel
 		this->m_info.get<ConnectionInfo>().connection = MUST(other.get_weak_ptr());
 		other.m_info.get<ConnectionInfo>().connection = MUST(this->get_weak_ptr());
 
+		this->m_peer_cred = other.m_peer_cred = {
+			.pid = Process::current().pid(),
+			.uid = Process::current().credentials().ruid(),
+			.gid = Process::current().credentials().rgid(),
+		};
+
 		return {};
 	}
 
@@ -128,7 +134,7 @@ namespace Kernel
 		if (!m_info.has<ConnectionInfo>())
 			return BAN::Error::from_errno(EOPNOTSUPP);
 
-		BAN::RefPtr<UnixDomainSocket> pending;
+		PendingConnection pending;
 
 		{
 			auto& connection_info = m_info.get<ConnectionInfo>();
@@ -152,9 +158,10 @@ namespace Kernel
 		}
 
 		TRY(return_inode->m_bound_file.canonical_path.push_back('X'));
-		return_inode->m_info.get<ConnectionInfo>().connection = TRY(pending->get_weak_ptr());
-		pending->m_info.get<ConnectionInfo>().connection = TRY(return_inode->get_weak_ptr());
-		pending->m_info.get<ConnectionInfo>().connection_done = true;
+		return_inode->m_info.get<ConnectionInfo>().connection = TRY(pending.socket->get_weak_ptr());
+		pending.socket->m_info.get<ConnectionInfo>().connection = TRY(return_inode->get_weak_ptr());
+		pending.socket->m_info.get<ConnectionInfo>().connection_done = true;
+		return_inode->m_peer_cred = pending.ucred;
 
 		if (address && address_len && !is_bound_to_unused())
 		{
@@ -162,7 +169,7 @@ namespace Kernel
 				.sun_family = AF_UNIX,
 				.sun_path {},
 			};
-			strcpy(sa_un.sun_path, pending->m_bound_file.canonical_path.data());
+			strcpy(sa_un.sun_path, pending.socket->m_bound_file.canonical_path.data());
 
 			const size_t to_copy = BAN::Math::min<size_t>(*address_len, sizeof(sockaddr_un));
 			memcpy(address, &sa_un, to_copy);
@@ -224,8 +231,16 @@ namespace Kernel
 
 			if (target_info.pending_connections.size() < target_info.pending_connections.capacity())
 			{
-				MUST(target_info.pending_connections.push(this));
+				TRY(target_info.pending_connections.push({
+					.socket = this,
+					.ucred = {
+						.pid = Process::current().pid(),
+						.uid = Process::current().credentials().ruid(),
+						.gid = Process::current().credentials().rgid(),
+					},
+				}));
 				target_info.pending_thread_blocker.unblock();
+				m_peer_cred = target_info.listen_ucred;
 				break;
 			}
 
@@ -236,6 +251,7 @@ namespace Kernel
 
 		while (!connection_info.connection_done)
 			Processor::yield();
+
 
 		return {};
 	}
@@ -252,10 +268,18 @@ namespace Kernel
 		auto& connection_info = m_info.get<ConnectionInfo>();
 
 		LockGuard _(connection_info.pending_lock);
+
 		if (connection_info.connection)
 			return BAN::Error::from_errno(EINVAL);
+
 		TRY(connection_info.pending_connections.reserve(backlog));
+
 		connection_info.listening = true;
+		connection_info.listen_ucred = {
+			.pid = Process::current().pid(),
+			.uid = Process::current().credentials().ruid(),
+			.gid = Process::current().credentials().rgid(),
+		};
 
 		return {};
 	}
@@ -722,7 +746,6 @@ namespace Kernel
 		return {};
 	}
 
-
 	BAN::ErrorOr<void> UnixDomainSocket::getpeername_impl(sockaddr* address, socklen_t* address_len)
 	{
 		if (!m_info.has<ConnectionInfo>())
@@ -743,38 +766,55 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 		}
 
-		int result;
+		uint8_t result[64];
+		size_t result_size;
+
+		int dummy;
 		switch (option)
 		{
 			case SO_ERROR:
-				result = 0;
+				dummy = 0;
+				memcpy(result, &dummy, sizeof(int));
+				result_size = sizeof(int);
 				break;
 			case SO_KEEPALIVE:
-				result = 1;
+				dummy = 1;
+				memcpy(result, &dummy, sizeof(int));
+				result_size = sizeof(int);
 				break;
 			case SO_SNDBUF:
-				result = m_sndbuf;
+				dummy = m_sndbuf;
+				memcpy(result, &dummy, sizeof(int));
+				result_size = sizeof(int);
 				break;
 			case SO_RCVBUF:
-				result = m_packet_buffer->size();
+				dummy = m_packet_buffer->size();
+				memcpy(result, &dummy, sizeof(int));
+				result_size = sizeof(int);
 				break;
 			case SO_TYPE:
 				switch (m_socket_type)
 				{
-					case Type::STREAM:    result = SOCK_STREAM;    break;
-					case Type::DGRAM:     result = SOCK_DGRAM;     break;
-					case Type::SEQPACKET: result = SOCK_SEQPACKET; break;
+					case Type::STREAM:    dummy = SOCK_STREAM;    break;
+					case Type::DGRAM:     dummy = SOCK_DGRAM;     break;
+					case Type::SEQPACKET: dummy = SOCK_SEQPACKET; break;
 					default: ASSERT_NOT_REACHED();
 				}
+				memcpy(result, &dummy, sizeof(int));
+				result_size = sizeof(int);
+				break;
+			case SO_PEERCRED:
+				memcpy(result, &m_peer_cred, sizeof(struct ucred));
+				result_size = sizeof(struct ucred);
 				break;
 			default:
 				dwarnln("getsockopt(SOL_SOCKET, {})", option);
 				return BAN::Error::from_errno(ENOTSUP);
 		}
 
-		const size_t len = BAN::Math::min<size_t>(sizeof(result), *value_len);
-		memcpy(value, &result, len);
-		*value_len = sizeof(int);
+		const size_t len = BAN::Math::min<size_t>(result_size, *value_len);
+		memcpy(value, result, len);
+		*value_len = result_size;
 
 		return {};
 	}

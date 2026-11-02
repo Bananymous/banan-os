@@ -104,22 +104,23 @@ struct linger
 
 #define SOL_SOCKET 1
 
-#define SO_ACCEPTCONN	0
-#define SO_BROADCAST	1
-#define SO_DEBUG		2
-#define SO_DONTROUTE	3
-#define SO_ERROR		4
-#define SO_KEEPALIVE	5
-#define SO_LINGER		6
-#define SO_OOBINLINE	7
-#define SO_RCVBUF		8
-#define SO_RCVLOWAT		9
-#define SO_RCVTIMEO		10
-#define SO_REUSEADDR	11
-#define SO_SNDBUF		12
-#define SO_SNDLOWAT		13
-#define SO_SNDTIMEO		14
-#define SO_TYPE			15
+#define SO_ACCEPTCONN 0
+#define SO_BROADCAST  1
+#define SO_DEBUG      2
+#define SO_DONTROUTE  3
+#define SO_ERROR      4
+#define SO_KEEPALIVE  5
+#define SO_LINGER     6
+#define SO_OOBINLINE  7
+#define SO_RCVBUF     8
+#define SO_RCVLOWAT   9
+#define SO_RCVTIMEO   10
+#define SO_REUSEADDR  11
+#define SO_SNDBUF     12
+#define SO_SNDLOWAT   13
+#define SO_SNDTIMEO   14
+#define SO_TYPE       15
+#define SO_PEERCRED   16
 
 #define SOMAXCONN 4096
 

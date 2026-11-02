@@ -52,15 +52,22 @@ namespace Kernel
 		bool is_streaming() const;
 
 	private:
+		struct PendingConnection
+		{
+			BAN::RefPtr<UnixDomainSocket> socket;
+			struct ucred ucred;
+		};
+
 		struct ConnectionInfo
 		{
-			BAN::Atomic<bool>							listening { false };
-			BAN::Atomic<bool>							connection_done { false };
-			mutable BAN::Atomic<bool>					target_closed { false };
-			BAN::WeakPtr<UnixDomainSocket>				connection;
-			BAN::Queue<BAN::RefPtr<UnixDomainSocket>>	pending_connections;
-			ThreadBlocker								pending_thread_blocker;
-			Mutex										pending_lock;
+			BAN::Atomic<bool>              listening       { false };
+			BAN::Atomic<bool>              connection_done { false };
+			mutable BAN::Atomic<bool>      target_closed   { false };
+			struct ucred                   listen_ucred    {};
+			BAN::WeakPtr<UnixDomainSocket> connection;
+			BAN::Queue<PendingConnection>  pending_connections;
+			ThreadBlocker                  pending_thread_blocker;
+			Mutex                          pending_lock;
 		};
 
 		struct ConnectionlessInfo
@@ -81,6 +88,8 @@ namespace Kernel
 
 	private:
 		const Socket::Type m_socket_type;
+
+		struct ucred m_peer_cred {};
 
 		mutable Mutex m_bind_mutex;
 		VirtualFileSystem::File	m_bound_file;
