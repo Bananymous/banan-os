@@ -1,26 +1,28 @@
 #include <BAN/Assert.h>
 
+#include <errno.h>
 #include <limits.h>
 #include <locale.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-static __locale_t s_locale_posix {
+static __locale_t s_locale_c {
 	.name = "C",
 	.encoding = __ENC_ASCII,
 };
 static __locale_t s_locale_utf8 {
-	.name = "C.UTF-8",
+	.name = "en_US.UTF-8",
 	.encoding = __ENC_UTF8,
 };
 
 static locale_t s_current_locales[LC_ALL] {
-	&s_locale_posix,
-	&s_locale_posix,
-	&s_locale_posix,
-	&s_locale_posix,
-	&s_locale_posix,
-	&s_locale_posix,
+	&s_locale_c,
+	&s_locale_c,
+	&s_locale_c,
+	&s_locale_c,
+	&s_locale_c,
+	&s_locale_c,
 };
 static_assert(LC_ALL == 6);
 
@@ -29,12 +31,13 @@ static locale_t str_to_locale(const char* locale)
 	if (*locale == '\0')
 		return &s_locale_utf8;
 
-	if (strcmp(locale, "C") == 0 || strcmp(locale, "POSIX") == 0)
-		return &s_locale_posix;
+	if (strcmp(locale, s_locale_c.name) == 0 || strcmp(locale, "POSIX") == 0)
+		return &s_locale_c;
 
-	if (strcmp(locale, "C.UTF-8") == 0)
+	if (strcmp(locale, s_locale_utf8.name) == 0)
 		return &s_locale_utf8;
 
+	errno = EINVAL;
 	return nullptr;
 }
 
