@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Array.h>
 #include <BAN/String.h>
 #include <BAN/StringView.h>
 #include <kernel/FS/Ext2/Definitions.h>

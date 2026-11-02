@@ -5,6 +5,7 @@
 #include <kernel/FS/Ext2/Inode.h>
 #include <kernel/FS/FileSystem.h>
 #include <kernel/Memory/VirtualRange.h>
+#include <kernel/ThreadBlocker.h>
 
 namespace Kernel
 {
