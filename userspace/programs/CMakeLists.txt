@@ -18,6 +18,7 @@ set(USERSPACE_PROGRAMS
 	false
 	find
 	getopt
+	grep
 	http-server
 	id
 	image
