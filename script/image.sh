@@ -38,21 +38,10 @@ if [ ! -b "$ROOT_PARTITION" ]; then
 fi
 
 if sudo mount "$ROOT_PARTITION" "$MOUNT_DIR"; then
-	if (($BANAN_INITRD)); then
-		INITRD_FILE="$BANAN_BUILD_DIR/banan-os.initrd"
-		(($BANAN_INITRD > 1)) && COMPRESS_FLAGS='-z' || COMPRESS_FLAGS=''
+	sudo rsync -rulHpt "$BANAN_SYSROOT/" "$MOUNT_DIR"
 
-		fakeroot -i "$BANAN_FAKEROOT" tar -C "$BANAN_SYSROOT" --exclude='./boot' $COMPRESS_FLAGS -cf "$INITRD_FILE" .
-
-		sudo mkdir -p "$MOUNT_DIR/boot"
-		sudo strip -o "$MOUNT_DIR/boot/banan-os.kernel" --strip-unneeded "$BANAN_BUILD_DIR/kernel/banan-os.kernel"
-		sudo cp "$INITRD_FILE" "$MOUNT_DIR/boot/banan-os.initrd"
-	else
-		sudo rsync -rulHpt "$BANAN_SYSROOT/" "$MOUNT_DIR"
-
-		fakeroot -i "$BANAN_FAKEROOT" find "$BANAN_SYSROOT" -printf '%P|%U|%G|%04m\n' >"$BANAN_BUILD_DIR/sysroot-perms.txt"
-		sudo "$BANAN_TOOLS_DIR/update-image-perms" "$MOUNT_DIR" "$BANAN_BUILD_DIR/sysroot-perms.txt"
-	fi
+	fakeroot -i "$BANAN_FAKEROOT" find "$BANAN_SYSROOT" -printf '%P|%U|%G|%04m\n' >"$BANAN_BUILD_DIR/sysroot-perms.txt"
+	sudo "$BANAN_TOOLS_DIR/update-image-perms" "$MOUNT_DIR" "$BANAN_BUILD_DIR/sysroot-perms.txt"
 
 	sudo umount "$MOUNT_DIR"
 fi
