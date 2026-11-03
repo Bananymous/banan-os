@@ -1,0 +1,14 @@
+diff -ruN ninja-1.13.2/src/util.cc ninja-1.13.2-banan_os/src/util.cc
+--- ninja-1.13.2/src/util.cc	2025-11-20 18:26:20.000000000 +0200
++++ ninja-1.13.2-banan_os/src/util.cc	2026-11-03 22:37:41.570752658 +0200
+@@ -977,6 +977,10 @@
+ double GetLoadAverage() {
+     return -0.0f;
+ }
++#elif defined(__banan_os__)
++double GetLoadAverage() {
++    return -0.0f;
++}
+ #else
+ double GetLoadAverage() {
+   double loadavg[3] = { 0.0f, 0.0f, 0.0f };
