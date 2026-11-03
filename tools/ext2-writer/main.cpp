@@ -1,6 +1,8 @@
 #include <kernel/FS/Ext2/FileSystem.h>
 #include <kernel/FS/Ext2/Inode.h>
 
+#include <BAN/HashMap.h>
+
 #include <dirent.h>
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -70,6 +72,8 @@ private:
 	size_t   m_mmap_size { 0 };
 };
 
+static BAN::HashMap<ino_t, BAN::RefPtr<Kernel::Inode>> s_hardlink_map;
+
 void copy_recursively(BAN::RefPtr<Kernel::Inode> parent, int parent_fd, dirent* dirent, int indent)
 {
 	struct stat st;
@@ -78,37 +82,66 @@ void copy_recursively(BAN::RefPtr<Kernel::Inode> parent, int parent_fd, dirent* 
 		return;
 	}
 
-	bool should_update_data = true;
+	if (auto it = s_hardlink_map.find(st.st_ino); it != s_hardlink_map.end())
+	{
+		if (auto ret = parent->find_inode(dirent->d_name); !ret.is_error())
+		{
+			if (ret.value()->ino() == it->value->ino())
+				return;
+
+			if (auto ret = parent->unlink(dirent->d_name); ret.is_error()) {
+				dwarnln("failed to unlink `{}': {}", dirent->d_name, ret.error());
+				return;
+			}
+		}
+
+		if (auto ret = parent->link_inode(dirent->d_name, it->value); ret.is_error())
+			dwarnln("failed to create hardlink for `{}': {}", dirent->d_name, ret.error());
+
+		return;
+	}
+
+	bool should_update_data = false;
 
 	auto inode_or_error = parent->find_inode(dirent->d_name);
 	if (!inode_or_error.is_error()) {
 		auto inode = inode_or_error.value();
-		should_update_data = inode->mtime().tv_sec < st.st_atim.tv_sec || (inode->mtime().tv_sec == st.st_atim.tv_sec && inode->mtime().tv_nsec < st.st_atim.tv_nsec);
-	} else {
+
+		should_update_data =
+			 inode->mtime().tv_sec  < st.st_mtim.tv_sec ||
+			(inode->mtime().tv_sec == st.st_mtim.tv_sec && inode->mtime().tv_nsec < st.st_mtim.tv_nsec);
+
+		if ((inode->mode().mode & S_IFMT) != (st.st_mode & S_IFMT)) {
+			if (auto ret = parent->unlink(dirent->d_name); ret.is_error()) {
+				dwarnln("failed to unlink `{}': {}", dirent->d_name, ret.error());
+				return;
+			}
+			inode_or_error = BAN::Error::from_errno(ENOENT);
+		}
+	}
+
+	if (inode_or_error.is_error()) {
 		if (inode_or_error.error().get_error_code() != ENOENT) {
 			dwarnln("error while looking up `{}': {}", dirent->d_name, inode_or_error.error());
 			return;
 		}
 
-		S_ISDIR(st.st_mode)
+		auto create_result = S_ISDIR(st.st_mode)
 			? parent->create_directory(dirent->d_name, st.st_mode, st.st_uid, st.st_gid)
 			: parent->create_file(dirent->d_name, st.st_mode, st.st_uid, st.st_gid);
-		inode_or_error = parent->find_inode(dirent->d_name);
 
-		if (inode_or_error.is_error()) {
-			dwarnln("failed to create `{}': {}", dirent->d_name, inode_or_error.error());
+		if (create_result.is_error()) {
+			dwarnln("failed to create `{}': {}", dirent->d_name, create_result.error());
 			return;
 		}
 
+		inode_or_error = MUST(parent->find_inode(dirent->d_name));
 		should_update_data = true;
 	}
 
 	auto inode = inode_or_error.release_value();
 
-	if ((inode->mode().mode & S_IFMT) != (st.st_mode & S_IFMT)) {
-		dwarnln("file type mismatch on `{}` ext2 has {o} and sysroot {o}", dirent->d_name, inode->mode().mode & S_IFMT, st.st_mode & S_IFMT);
-		return;
-	}
+	ASSERT((inode->mode().mode & S_IFMT) == (st.st_mode & S_IFMT));
 
 	if ((inode->mode().mode & 07777) != (st.st_mode & 07777) || inode->uid() != st.st_uid || inode->gid() != st.st_gid) {
 		MUST(inode->chmod(st.st_mode & 07777));
@@ -165,23 +198,34 @@ void copy_recursively(BAN::RefPtr<Kernel::Inode> parent, int parent_fd, dirent* 
 			if (!should_update_data)
 				break;
 
+			if (auto ret = inode->truncate(0); ret.is_error()) {
+				dwarnln("failed to clear old data from `{}': {}", dirent->d_name, ret.error());
+				return;
+			}
+
 			const int fd = openat(parent_fd, dirent->d_name, O_RDONLY);
 			if (fd == -1) {
 				dwarnln("failed to openat `{}': {}", dirent->d_name, inode_or_error.error());
 				return;
 			}
 
+			const uint8_t zero_buffer[MyBlockDevice::block_size] {};
 			uint8_t buffer[MyBlockDevice::block_size];
 
 			size_t total_done = 0;
 			while (total_done < st.st_size)
 			{
-				const ssize_t nread = read(fd, buffer, sizeof(buffer));
+				const ssize_t nread = read(fd, buffer, sizeof(buffer) - (total_done % sizeof(buffer)));
 				if (nread == -1)
 					dwarnln("failed to read from `{}': {}", dirent->d_name, strerror(errno));
 				if (nread <= 0) {
 					close(fd);
 					return;
+				}
+
+				if (memcmp(zero_buffer, buffer, nread) == 0) {
+					total_done += nread;
+					continue;
 				}
 
 				size_t total_written = 0;
@@ -230,6 +274,9 @@ void copy_recursively(BAN::RefPtr<Kernel::Inode> parent, int parent_fd, dirent* 
 			dwarnln("unhandled file mode {o}", st.st_mode & S_IFMT);
 			ASSERT_NOT_REACHED();
 	}
+
+	if (!S_ISDIR(st.st_mode) && st.st_nlink > 1)
+		MUST(s_hardlink_map.insert(st.st_ino, inode));
 }
 
 uint64_t parse_u64_or_die(const char* string)
