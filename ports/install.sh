@@ -59,6 +59,7 @@ MAKE_BUILD_TARGETS=('all')
 MAKE_INSTALL_TARGETS=('install')
 
 CONFIG_SUB=()
+CONFIGURE=()
 
 REVISION=1
 
@@ -66,18 +67,56 @@ clean() {
 	find . -mindepth 1 -maxdepth 1 -not -name 'patches' -not -name 'build.sh' -exec rm -rf {} +
 }
 
-config_sub_update() {
-	[ ${#CONFIG_SUB[@]} -eq 0 ] && return
+autotools_update() {
+	if [ ${#CONFIG_SUB[@]} -gt 0 ]; then
+		config_sub_path="$BANAN_PORT_DIR/config.sub"
 
-	config_sub_path="$BANAN_PORT_DIR/config.sub"
+		if [ ! -f "$config_sub_path" ]; then
+			wget -O "$config_sub_path.tmp" 'https://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD' || exit 1
+			mv $config_sub_path.tmp $config_sub_path
+		fi
 
-	if [ ! -f "$config_sub_path" ]; then
-		wget -O "$config_sub_path.tmp" 'https://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD' || exit 1
-		mv $config_sub_path.tmp $config_sub_path
+		for target in "${CONFIG_SUB[@]}"; do
+			cp "$config_sub_path" "$target"
+		done
 	fi
 
-	for target in "${CONFIG_SUB[@]}"; do
-		cp "$config_sub_path" "$target"
+	for configure in "${CONFIGURE[@]}"; do
+		grep -qE '^banan_os\*)$' "$configure" && continue
+		grep -qE '^beos\*)$'     "$configure" || continue
+
+		awk '
+		/^beos\*)$/ {
+			getline
+
+			if ($0 ~ /lt_cv_deplibs_check_method/) {
+				print "banan_os*)"
+				print "  lt_cv_deplibs_check_method=pass_all"
+				print "  ;;"
+				print ""
+			}
+
+			if ($0 ~ /library_names_spec/) {
+				print "banan_os*)"
+				print "  version_type=linux # correct to gnu/linux during the next big refactor"
+				print "  need_lib_prefix=no"
+				print "  need_version=no"
+				print "  library_names_spec='\''$libname$release$shared_ext$versuffix $libname$release$shared_ext$major $libname$shared_ext'\''"
+				print "  soname_spec='\''$libname$release$shared_ext$major'\''"
+				print "  dynamic_linker=\"$host_os DynamicLoader.so\""
+				print "  shlibpath_var=LD_LIBRARY_PATH"
+				print "  ;;"
+				print ""
+			}
+
+			print "beos*)"
+			print $0
+			next
+		}
+		{ print }
+		' "$configure" > "$configure.tmp" || exit 1
+		chmod --reference="$configure" "$configure.tmp"
+		mv "$configure.tmp" "$configure"
 	done
 }
 
@@ -258,7 +297,7 @@ fi
 cd "$build_dir"
 
 if (( $needs_compile )); then
-	config_sub_update
+	autotools_update
 
 	pre_configure
 	configure

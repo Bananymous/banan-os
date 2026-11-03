@@ -5,6 +5,7 @@ VERSION='8.17.0'
 DOWNLOAD_URL="https://curl.se/download/curl-$VERSION.tar.xz#955f6e729ad6b3566260e8fef68620e76ba3c31acf0a18524416a185acf77992"
 DEPENDENCIES=('openssl' 'zlib' 'zstd')
 CONFIG_SUB=('config.sub')
+CONFIGURE=('configure')
 CONFIGURE_OPTIONS=(
 	'--disable-threaded-resolver'
 	'--disable-ipv6'

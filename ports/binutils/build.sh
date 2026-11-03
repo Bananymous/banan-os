@@ -4,6 +4,22 @@ NAME='binutils'
 VERSION='2.45'
 DOWNLOAD_URL="https://ftpmirror.gnu.org/gnu/binutils/binutils-$VERSION.tar.gz#8a3eb4b10e7053312790f21ee1a38f7e2bbd6f4096abb590d3429e5119592d96"
 DEPENDENCIES=('zlib' 'zstd')
+CONFIGURE=(
+	'configure'
+	'bfd/configure'
+	'binutils/configure'
+	'etc/configure'
+	'gas/configure'
+	'gprof/configure'
+	'gprofng/configure'
+	'gprofng/libcollector/configure'
+	'ld/configure'
+	'libctf/configure'
+	'libiberty/configure'
+	'libsframe/configure'
+	'opcodes/configure'
+	'zlib/configure'
+)
 MAKE_INSTALL_TARGETS=('install-strip')
 CONFIGURE_OPTIONS=(
 	"--target=$BANAN_TOOLCHAIN_TRIPLE"
