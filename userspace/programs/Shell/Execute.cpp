@@ -143,16 +143,23 @@ BAN::ErrorOr<Execute::ExecuteResult> Execute::execute_command_no_wait(const Inte
 				close(dst_fd);
 		}
 
+		bool is_group_leader = (command.prev_pid == 0);
+		if (setpgid(command.prev_pid, 0) == -1)
+		{
+			// previous is already dead, lets become the group leader
+			if (setpgid(0, 0) == -1)
+				perror("setpgid");
+			else
+				is_group_leader = true;
+		}
+		if (!command.background && is_group_leader && isatty(STDIN_FILENO))
+			if (tcsetpgrp(STDIN_FILENO, getpgrp()) == -1)
+				perror("tcsetpgrp");
+
 		execv(command.command.get<BAN::String>().data(), const_cast<char* const*>(exec_args.data()));
 		perror("execv");
 		exit(errno);
 	}
-
-	if (setpgid(child_pid, command.pgrp ? command.pgrp : child_pid))
-		perror("setpgid");
-	if (!command.background && command.pgrp == 0 && isatty(STDIN_FILENO))
-		if (tcsetpgrp(STDIN_FILENO, child_pid) == -1)
-			perror("tcsetpgrp");
 
 	return ExecuteResult {
 		.pid = child_pid,
@@ -173,7 +180,7 @@ BAN::ErrorOr<int> Execute::execute_command_sync(BAN::Span<const BAN::String> arg
 		.fd_in = fd_in,
 		.fd_out = fd_out,
 		.background = false,
-		.pgrp = getpgrp(),
+		.prev_pid = 0,
 	};
 
 	if (const auto* builtin = Builtin::get().find_builtin(arguments[0]))
@@ -298,7 +305,7 @@ BAN::ErrorOr<void> Execute::execute_command(const PipedCommand& piped_command)
 			.fd_in = fd_in,
 			.fd_out = fd_out,
 			.background = piped_command.background,
-			.pgrp = child_pids.front(),
+			.prev_pid = (i > 0) ? child_pids[i - 1] : 0,
 		};
 
 		if (const auto* builtin = Builtin::get().find_builtin(arguments[0]))

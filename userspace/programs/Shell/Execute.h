@@ -56,7 +56,7 @@ private:
 		int fd_in;
 		int fd_out;
 		bool background;
-		pid_t pgrp;
+		pid_t prev_pid;
 	};
 
 	struct ExecuteResult
