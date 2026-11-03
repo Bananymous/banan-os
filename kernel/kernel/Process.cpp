@@ -3968,63 +3968,62 @@ namespace Kernel
 
 		if (pid == 0)
 			pid = m_pid;
-		if (pgid == 0)
-			pgid = m_pid;
 
-		if (pid != pgid)
+		if (pgid == 0)
+			pgid = pid;
+
+		if (pid == pgid)
+			; // you can always create a new process group with its pid
+		else
 		{
-			bool pgid_valid = false;
-			for_each_process_in_session(m_sid,
-				[&](Process& process)
-				{
-					if (process.pgrp() == pgid)
-					{
-						pgid_valid = true;
-						return BAN::Iteration::Break;
-					}
+			// otherwise the process group must exist in your session
+			bool pgid_exist_in_session { false };
+			for_each_process_in_session(m_sid, [&](Process& process) {
+				if (process.pgrp() != pgid)
 					return BAN::Iteration::Continue;
-				}
-			);
-			if (!pgid_valid)
+				pgid_exist_in_session = true;
+				return BAN::Iteration::Break;
+			});
+			if (!pgid_exist_in_session)
 				return BAN::Error::from_errno(EPERM);
 		}
 
-		if (m_pid == pid)
+		if (pid == m_pid)
 		{
+			// session leader is not allowed to change its group
 			if (is_session_leader())
 				return BAN::Error::from_errno(EPERM);
+
 			m_pgrp = pgid;
 			return 0;
 		}
 
-		int error = ESRCH;
-		for_each_process(
-			[&](Process& process)
+		BAN::ErrorOr<void> result = BAN::Error::from_errno(ESRCH);
+		for_each_process_in_session(m_sid, [&](Process& process) {
+			if (process.pid() != pid)
+				return BAN::Iteration::Continue;
+
+			// you can only change process group of you child
+			if (process.m_parent != m_pid)
+				result = BAN::Error::from_errno(ESRCH);
+			// ... and is not the session leader
+			else if (process.is_session_leader())
+				result = BAN::Error::from_errno(EPERM);
+			// ... and has not called exec
+			else if (process.m_has_called_exec)
+				result = BAN::Error::from_errno(EACCES);
+			else
 			{
-				if (process.pid() != pid)
-					return BAN::Iteration::Continue;
-
-				if (process.m_parent != m_pid)
-					error = ESRCH;
-				else if (process.is_session_leader())
-					error = EPERM;
-				else if (process.m_has_called_exec)
-					error = EACCES;
-				else if (process.m_sid != m_sid)
-					error = EPERM;
-				else
-				{
-					error = 0;
-					process.m_pgrp = pgid;
-				}
-
-				return BAN::Iteration::Break;
+				process.m_pgrp = pgid;
+				result = {};
 			}
-		);
 
-		if (error == 0)
-			return 0;
-		return BAN::Error::from_errno(error);
+			return BAN::Iteration::Continue;
+		});
+
+		TRY(result);
+
+		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_getpgid(pid_t pid)
