@@ -334,7 +334,10 @@ namespace Kernel
 		if (static_cast<size_t>(m_size) == new_size)
 			return {};
 
-		// TODO: we should remove unused blocks on shrink
+		if (new_size == 0)
+			TRY(cleanup_data_blocks_no_lock());
+		else if (new_size < static_cast<size_t>(m_size))
+			dwarnln("TODO: cleanup data in truncate");
 
 		const auto old_size = static_cast<size_t>(m_size);
 
