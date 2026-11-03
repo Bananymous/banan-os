@@ -9,7 +9,14 @@
 
 int posix_spawnattr_init(posix_spawnattr_t* attr)
 {
-	attr->flags = 0;
+	*attr = {
+		.flags       = 0,
+		.pgroup      = 0,
+		.schedparam  = {},       // unspecified by POSIX
+		.schedpolicy = SCHED_RR, // unspecified by POSIX
+		.sigdefault  = 0,
+		.sigmask     = 0,        // unspecified by POSIX
+	};
 	return 0;
 }
 
