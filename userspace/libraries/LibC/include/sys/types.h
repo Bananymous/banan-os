@@ -178,15 +178,15 @@ __BEGIN_DECLS
 #ifdef __need_all_types
 	#include <stdint.h>
 
-	typedef short bits16_t;
-	typedef unsigned short u_bits16_t;
-	typedef int bits32_t;
-	typedef unsigned int u_bits32_t;
-	typedef char* bits64_t;
-	typedef unsigned char u_char;
+	typedef unsigned char  u_char;
 	typedef unsigned short u_short;
-	typedef unsigned int u_int;
-	typedef unsigned long u_long;
+	typedef unsigned int   u_int;
+	typedef unsigned long  u_long;
+
+	typedef uint8_t  u_int8_t;
+	typedef uint16_t u_int16_t;
+	typedef uint32_t u_int32_t;
+	typedef uint64_t u_int64_t;
 #endif
 
 #undef __need_all_types
