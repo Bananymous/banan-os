@@ -117,6 +117,7 @@ get_split_info() {
 			DEPENDENCIES=(
 				'mesa-common'
 				'expat'
+				'libdrm'
 				'zlib'
 				'zstd'
 			)
