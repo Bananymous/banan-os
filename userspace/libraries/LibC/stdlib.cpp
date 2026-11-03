@@ -358,6 +358,23 @@ char* ptsname(int fildes)
 	return buffer;
 }
 
+static const char* s_progname = nullptr;
+
+const char* getprogname()
+{
+	if (s_progname == nullptr)
+		if (const char* progname = realpath("/proc/self/exe", nullptr))
+			setprogname(progname);
+	return s_progname;
+}
+
+void setprogname(const char* progname)
+{
+	if (const char* slash = strrchr(progname, '/'))
+		progname = slash + 1;
+	s_progname = progname;
+}
+
 int mblen(const char* s, size_t n)
 {
 	if (s == nullptr)

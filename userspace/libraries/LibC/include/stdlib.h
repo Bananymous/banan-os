@@ -115,6 +115,9 @@ char*	mktemp(char* _template);
 int		mkstemps(char* _template, int suffixlen);
 int		mkostemps(char* _template, int suffixlen, int flags);
 
+const char* getprogname();
+void        setprogname(const char* progname);
+
 __END_DECLS
 
 #endif
