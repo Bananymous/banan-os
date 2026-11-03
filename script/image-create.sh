@@ -22,10 +22,6 @@ fi
 
 set -u
 
-# create mount directory
-MOUNT_DIR="$BANAN_BUILD_DIR/mount"
-mkdir -p $MOUNT_DIR
-
 # create empty disk image
 DISK_SIZE=$((4 * 1024 * 1024 * 1024))
 truncate -s 0 "$BANAN_DISK_IMAGE_PATH"
