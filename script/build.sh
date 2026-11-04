@@ -5,10 +5,8 @@ export BANAN_SCRIPT_DIR=$(dirname $(realpath $0))
 source $BANAN_SCRIPT_DIR/config.sh
 
 run_fakeroot() {
-	if [ ! -f $BANAN_FAKEROOT ]; then
-		touch $BANAN_FAKEROOT
-	fi
-	fakeroot -i $BANAN_FAKEROOT -s $BANAN_FAKEROOT -- /bin/bash -c '$@' bash $@
+	touch "$BANAN_FAKEROOT"
+	fakeroot -i "$BANAN_FAKEROOT" -s "$BANAN_FAKEROOT" -- "$@"
 }
 
 make_build_dir () {
