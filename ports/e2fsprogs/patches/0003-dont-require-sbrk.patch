@@ -1,0 +1,64 @@
+diff -ruN e2fsprogs-1.47.4/e2fsck/e2fsck.h e2fsprogs-1.47.4-banan_os/e2fsck/e2fsck.h
+--- e2fsprogs-1.47.4/e2fsck/e2fsck.h	2026-03-06 19:17:36.000000000 +0200
++++ e2fsprogs-1.47.4-banan_os/e2fsck/e2fsck.h	2026-11-03 16:45:57.965615966 +0200
+@@ -156,7 +156,9 @@
+ 	struct timeval time_start;
+ 	struct timeval user_start;
+ 	struct timeval system_start;
++#ifndef __banan_os__
+ 	void	*brk_start;
++#endif
+ 	unsigned long long bytes_read;
+ 	unsigned long long bytes_written;
+ };
+diff -ruN e2fsprogs-1.47.4/e2fsck/util.c e2fsprogs-1.47.4-banan_os/e2fsck/util.c
+--- e2fsprogs-1.47.4/e2fsck/util.c	2026-03-06 19:17:36.000000000 +0200
++++ e2fsprogs-1.47.4-banan_os/e2fsck/util.c	2026-11-03 16:47:36.954509679 +0200
+@@ -375,7 +375,9 @@
+ #endif
+ 	io_stats io_start = 0;
+ 
++#ifndef __banan_os__
+ 	track->brk_start = sbrk(0);
++#endif
+ 	gettimeofday(&track->time_start, 0);
+ #ifdef HAVE_GETRUSAGE
+ #ifdef sun
+@@ -450,9 +452,10 @@
+ 			kbytes(malloc_info.uordblks),
+ 			kbytes(malloc_info.fordblks));
+	} else
+-#endif
++#elif !defined __banan_os__
+ 	log_out(ctx, _("Memory used: %lluk, "),
+ 		kbytes(((char *)sbrk(0)) - ((char *)track->brk_start)));
++#endif
+ 
+ #ifdef HAVE_GETRUSAGE
+ 	getrusage(RUSAGE_SELF, &r);
+diff -ruN e2fsprogs-1.47.4/resize/resize2fs.h e2fsprogs-1.47.4-banan_os/resize/resize2fs.h
+--- e2fsprogs-1.47.4/resize/resize2fs.h	2026-03-06 19:17:36.000000000 +0200
++++ e2fsprogs-1.47.4-banan_os/resize/resize2fs.h	2026-11-03 16:54:33.811950901 +0200
+@@ -94,7 +94,9 @@
+ 	struct timeval time_start;
+ 	struct timeval user_start;
+ 	struct timeval system_start;
++#ifndef __banan_os__
+ 	void	*brk_start;
++#endif
+ 	unsigned long long bytes_read;
+ 	unsigned long long bytes_written;
+ };
+diff -ruN e2fsprogs-1.47.4/resize/resource_track.c e2fsprogs-1.47.4-banan_os/resize/resource_track.c
+--- e2fsprogs-1.47.4/resize/resource_track.c	2026-03-06 19:17:36.000000000 +0200
++++ e2fsprogs-1.47.4-banan_os/resize/resource_track.c	2026-11-03 16:55:02.717883015 +0200
+@@ -27,7 +27,9 @@
+ 	io_stats io_start = 0;
+ 
+ 	track->desc = desc;
++#ifndef __banan_os__
+ 	track->brk_start = sbrk(0);
++#endif
+ 	gettimeofday(&track->time_start, 0);
+ #ifdef HAVE_GETRUSAGE
+ #ifdef sun

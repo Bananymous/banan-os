@@ -1,0 +1,39 @@
+diff -ruN e2fsprogs-1.47.4/lib/ext2fs/bitmaps.c e2fsprogs-1.47.4-banan_os/lib/ext2fs/bitmaps.c
+--- e2fsprogs-1.47.4/lib/ext2fs/bitmaps.c	2026-03-06 19:17:36.000000000 +0200
++++ e2fsprogs-1.47.4-banan_os/lib/ext2fs/bitmaps.c	2026-11-03 16:41:36.402818116 +0200
+@@ -24,6 +24,9 @@
+ #if HAVE_SYS_TYPES_H
+ #include <sys/types.h>
+ #endif
++#ifdef __banan_os__
++#include <sys/time.h>
++#endif
+ 
+ #include "ext2_fs.h"
+ #include "ext2fs.h"
+diff -ruN e2fsprogs-1.47.4/lib/ext2fs/blkmap64_ba.c e2fsprogs-1.47.4-banan_os/lib/ext2fs/blkmap64_ba.c
+--- e2fsprogs-1.47.4/lib/ext2fs/blkmap64_ba.c	2026-03-06 19:17:36.000000000 +0200
++++ e2fsprogs-1.47.4-banan_os/lib/ext2fs/blkmap64_ba.c	2026-11-03 16:40:57.871221801 +0200
+@@ -23,6 +23,9 @@
+ #if HAVE_SYS_TYPES_H
+ #include <sys/types.h>
+ #endif
++#ifdef __banan_os__
++#include <sys/time.h>
++#endif
+ 
+ #include "ext2_fs.h"
+ #include "ext2fsP.h"
+diff -ruN e2fsprogs-1.47.4/lib/ext2fs/blkmap64_rb.c e2fsprogs-1.47.4-banan_os/lib/ext2fs/blkmap64_rb.c
+--- e2fsprogs-1.47.4/lib/ext2fs/blkmap64_rb.c	2026-03-06 19:17:36.000000000 +0200
++++ e2fsprogs-1.47.4-banan_os/lib/ext2fs/blkmap64_rb.c	2026-11-03 16:42:25.268949302 +0200
+@@ -26,6 +26,9 @@
+ #if HAVE_LINUX_TYPES_H
+ #include <linux/types.h>
+ #endif
++#ifdef __banan_os__
++#include <sys/time.h>
++#endif
+ 
+ #include "ext2_fs.h"
+ #include "ext2fsP.h"
