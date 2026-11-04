@@ -1,0 +1,49 @@
+diff -ruN fakeroot-2.1.4/faked.c fakeroot-2.1.4-banan_os/faked.c
+--- fakeroot-2.1.4/faked.c	2026-07-10 01:51:49.000000000 +0300
++++ fakeroot-2.1.4-banan_os/faked.c	2026-09-02 21:47:47.606902193 +0300
+@@ -133,6 +133,11 @@
+ # include <dirent.h>
+ #endif
+ 
++#ifdef __banan_os__
++# include <sys/select.h>
++# define MAX(a, b) ((a) > (b) ? (a) : (b))
++#endif
++
+ #ifndef FAKEROOT_FAKENET
+ # define FAKE_KEY msg_key
+ #else /* FAKEROOT_FAKENET */
+@@ -1496,15 +1501,20 @@
+   if (sd < 0)
+     fail("socket");
+ 
++#ifndef __banan_os__
+   val = 1;
+   if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof (val)) < 0)
+     fail("setsockopt(SO_REUSEADDR)");
++#endif
+ 
+   val = 1;
+   if (setsockopt(sd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof (val)) < 0)
+     fail("setsockopt(TCP_NODELAY)");
+ 
+-  if (port > 0) {
++#ifndef __banan_os__
++  if (port > 0)
++#endif
++  {
+     memset((char *) &addr, 0, sizeof (addr));
+     addr.sin_family = AF_INET;
+     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+@@ -1573,7 +1583,11 @@
+     /* literally copied from the linux klogd code, go to background */
+     if ((pid=fork()) == 0){
+       int fl;
++#ifdef __banan_os__
++      int num_fds = OPEN_MAX;
++#else
+       int num_fds = getdtablesize();
++#endif
+       int cr_ret = -1;
+ 
+       fflush(stdout);
