@@ -10,6 +10,7 @@ set(USERSPACE_PROGRAMS
 	chown
 	ClipboardServer
 	cp
+	cut
 	dd
 	dhcp-client
 	dirname
