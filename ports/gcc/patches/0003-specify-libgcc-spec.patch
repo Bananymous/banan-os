@@ -1,0 +1,13 @@
+diff -ruN gcc-15.3.0/gcc/config/banan_os.h gcc-15.3.0-banan_os/gcc/config/banan_os.h
+--- gcc-15.3.0/gcc/config/banan_os.h	2026-11-04 15:07:23.604734027 +0200
++++ gcc-15.3.0-banan_os/gcc/config/banan_os.h	2026-11-04 15:07:04.809229853 +0200
+@@ -19,6 +19,9 @@
+ #undef LINK_SPEC
+ #define LINK_SPEC "%{shared:-shared} %{static:-static} %{!shared: %{!static: %{rdynamic:-export-dynamic}}}"
+ 
++#undef LIBGCC_SPEC
++#define LIBGCC_SPEC "%{static|static-libgcc:-lgcc -lgcc_eh}%{!static:%{!static-libgcc:%{!shared:%{!shared-libgcc:-lgcc -lgcc_eh}%{shared-libgcc:-lgcc_s -lgcc}}%{shared:-lgcc_s}}}"
++
+ /* We don't have separate math library so don't link it. */
+ #undef MATH_LIBRARY
+ #define MATH_LIBRARY ""
