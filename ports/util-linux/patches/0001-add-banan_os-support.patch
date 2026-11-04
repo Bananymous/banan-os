@@ -1,0 +1,114 @@
+diff -ruN util-linux-2.42.4/include/strutils.h util-linux-2.42.4-banan_os/include/strutils.h
+--- util-linux-2.42.4/include/strutils.h	2026-09-21 13:33:11.000000000 +0300
++++ util-linux-2.42.4-banan_os/include/strutils.h	2026-11-03 16:32:09.428494081 +0200
+@@ -18,6 +18,10 @@
+ 
+ #include "c.h"
+ 
++#ifdef __banan_os__
++#include <sys/time.h>
++#endif
++
+ /* initialize a custom exit code for all *_or_err functions */
+ extern void strutils_set_exitcode(int exit_code);
+ 
+diff -ruN util-linux-2.42.4/include/ttyutils.h util-linux-2.42.4-banan_os/include/ttyutils.h
+--- util-linux-2.42.4/include/ttyutils.h	2026-09-21 13:33:11.000000000 +0300
++++ util-linux-2.42.4-banan_os/include/ttyutils.h	2026-11-03 16:32:09.428695086 +0200
+@@ -18,6 +18,28 @@
+ #include <sys/ttydefaults.h>
+ #endif
+ 
++#ifdef __banan_os__
++#define CEOF 0
++#define CERASE 0
++#define CINTR 0
++#define CKILL 0
++#define CLNEXT 0
++#define CQUIT 0
++#define CSTART 0
++#define CSTOP 0
++#define CSUSP 0
++#define CWERASE 0
++#define ECHOCTL 0
++#define ECHOKE 0
++#define ECHOPRT 0
++#define IMAXBEL 0
++#define VDISCARD 0
++#define VEOL2 0
++#define VLNEXT 0
++#define VREPRINT 0
++#define VWERASE 0
++#endif
++
+ #ifdef USE_TTY_GROUP
+ # define TTY_MODE 0620
+ #else
+diff -ruN util-linux-2.42.4/lib/configs.c util-linux-2.42.4-banan_os/lib/configs.c
+--- util-linux-2.42.4/lib/configs.c	2026-09-21 13:33:11.000000000 +0300
++++ util-linux-2.42.4-banan_os/lib/configs.c	2026-11-03 16:32:09.429682370 +0200
+@@ -3,7 +3,7 @@
+  */
+ #include <err.h>
+ #include <errno.h>
+-#include <sys/syslog.h>
++#include <syslog.h>
+ #include <sys/stat.h>
+ #include <stdarg.h>
+ #include <stdbool.h>
+diff -ruN util-linux-2.42.4/lib/default_shell.c util-linux-2.42.4-banan_os/lib/default_shell.c
+--- util-linux-2.42.4/lib/default_shell.c	2026-09-21 13:33:11.000000000 +0300
++++ util-linux-2.42.4-banan_os/lib/default_shell.c	2026-11-03 16:32:09.429317656 +0200
+@@ -1,7 +1,11 @@
+ /*
+  * SPDX-License-Identifier: GPL-2.0-or-later
+  */
++#ifdef __banan_os__
++#define _PATH_BSHELL "/usr/bin/sh"
++#else
+ #include <paths.h>
++#endif
+ 
+ #include "c.h"
+ #include "default_shell.h"
+diff -ruN util-linux-2.42.4/lib/logindefs.c util-linux-2.42.4-banan_os/lib/logindefs.c
+--- util-linux-2.42.4/lib/logindefs.c	2026-09-21 13:33:11.000000000 +0300
++++ util-linux-2.42.4-banan_os/lib/logindefs.c	2026-11-03 16:32:09.430718824 +0200
+@@ -26,7 +26,7 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+-#include <sys/syslog.h>
++#include <syslog.h>
+ #include <sys/stat.h>
+ #include <sys/types.h>
+ #include <pwd.h>
+diff -ruN util-linux-2.42.4/lib/shells.c util-linux-2.42.4-banan_os/lib/shells.c
+--- util-linux-2.42.4/lib/shells.c	2026-09-21 13:33:11.000000000 +0300
++++ util-linux-2.42.4-banan_os/lib/shells.c	2026-11-03 16:32:09.429158906 +0200
+@@ -4,9 +4,11 @@
+ #include <sys/types.h>
+ #include <pwd.h>
+ #include <stdlib.h>
++#ifndef __banan_os__
+ #include <paths.h>
++#endif
+ #include <unistd.h>
+-#include <sys/syslog.h>
++#include <syslog.h>
+ #if defined (HAVE_LIBECONF) && defined (USE_VENDORDIR)
+ #include <libeconf.h>
+ #endif
+@@ -14,6 +16,12 @@
+ #include "closestream.h"
+ #include "shells.h"
+ 
++#ifdef __banan_os__
++#define getusershell() NULL
++#define setusershell()
++#define endusershell()
++#endif
++
+ #if defined (HAVE_LIBECONF) && defined (USE_VENDORDIR)
+ econf_file *open_etc_shells(void)
+ {
