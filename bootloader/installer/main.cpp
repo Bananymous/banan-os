@@ -9,14 +9,7 @@ int main(int argc, char** argv)
 
 	if (argc != 4)
 	{
-		std::fprintf(stderr, "usage: %s BOOTLOADER DISK_IMAGE ROOT_PARTITION_GUID\n", argv[0]);
-		return 1;
-	}
-
-	auto root_partition_guid = GUID::from_string(argv[3]);
-	if (!root_partition_guid.has_value())
-	{
-		std::cerr << "invalid guid '" << argv[3] << '\'' << std::endl;
+		std::fprintf(stderr, "usage: %s BOOTLOADER DISK_IMAGE ROOT_PARTITION_NAME\n", argv[0]);
 		return 1;
 	}
 
@@ -37,7 +30,7 @@ int main(int argc, char** argv)
 	if (!disk_image.success())
 		return 1;
 
-	if (!disk_image.install_bootloader(*stage1, *stage2, *data, *root_partition_guid))
+	if (!disk_image.install_bootloader(*stage1, *stage2, *data, argv[3]))
 		return 1;
 	std::cout << "bootloader installed" << std::endl;
 

@@ -62,9 +62,6 @@ install_grub_uefi() {
 }
 
 install_banan_legacy() {
-	root_part_info=($(fdisk -x "$BANAN_DISK_IMAGE_PATH" | grep root))
-	root_part_guid="${root_part_info[5]}"
-
 	installer_build_dir="$BANAN_ROOT_DIR/bootloader/installer/build/$BANAN_ARCH"
 	bootloader_elf="$BANAN_BUILD_DIR/bootloader/bios/bootloader"
 
@@ -83,7 +80,7 @@ install_banan_legacy() {
 	ninja
 
 	echo installing bootloader
-	"$installer_build_dir/banan_os-bootloader-installer" "$bootloader_elf" "$BANAN_DISK_IMAGE_PATH" "$root_part_guid"
+	"$installer_build_dir/banan_os-bootloader-installer" "$bootloader_elf" "$BANAN_DISK_IMAGE_PATH" root
 }
 
 install_banan_uefi() {

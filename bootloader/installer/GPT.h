@@ -65,7 +65,7 @@ public:
 	GPTFile(std::string_view path);
 	~GPTFile();
 
-	bool install_bootloader(std::span<const uint8_t> stage1, std::span<const uint8_t> stage2, std::span<const uint8_t> data, const GUID& root_partition_guid);
+	bool install_bootloader(std::span<const uint8_t> stage1, std::span<const uint8_t> stage2, std::span<const uint8_t> data, std::string_view root_partition_name);
 
 	const GPTHeader& gpt_header() const;
 
@@ -76,7 +76,7 @@ public:
 private:
 	MBR& mbr();
 	bool validate_gpt_header() const;
-	std::optional<GPTPartitionEntry> find_partition_with_guid(const GUID& guid) const;
+	std::optional<GPTPartitionEntry> find_partition_with_name(std::string_view name) const;
 	std::optional<GPTPartitionEntry> find_partition_with_type(const GUID& type_guid) const;
 
 	bool install_stage1(std::span<const uint8_t> stage1);

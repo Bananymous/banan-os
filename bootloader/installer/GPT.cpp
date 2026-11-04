@@ -172,30 +172,37 @@ bool GPTFile::install_stage2(std::span<const uint8_t> stage2, std::span<const ui
 	return true;
 }
 
-bool GPTFile::install_bootloader(std::span<const uint8_t> stage1, std::span<const uint8_t> stage2, std::span<const uint8_t> data, const GUID& root_partition_guid)
+bool GPTFile::install_bootloader(std::span<const uint8_t> stage1, std::span<const uint8_t> stage2, std::span<const uint8_t> data, std::string_view root_partition_name)
 {
-	if (!find_partition_with_guid(root_partition_guid).has_value())
+	const auto root_partition = find_partition_with_name(root_partition_name);
+	if (!root_partition.has_value())
 	{
-		std::cerr << m_path << ": no partition with GUID " << root_partition_guid << std::endl;
+		std::cerr << m_path << ": no partition with name `" << root_partition_name << '\'' << std::endl;
 		return false;
 	}
 	if (!install_stage1(stage1))
 		return false;
-	if (!install_stage2(stage2, data, root_partition_guid))
+	if (!install_stage2(stage2, data, root_partition->partition_guid))
 		return false;
 	return true;
 }
 
-std::optional<GPTPartitionEntry> GPTFile::find_partition_with_guid(const GUID& guid) const
+std::optional<GPTPartitionEntry> GPTFile::find_partition_with_name(std::string_view name) const
 {
+	if (name.size() > 36)
+		return {};
+
+	uint16_t gpt_name[36] {};
+	for (size_t i = 0; i < name.size(); i++)
+		gpt_name[i] = name[i];
+
 	const auto& gpt_header = this->gpt_header();
 	const uint8_t* partition_entry_array_start = m_mmap + gpt_header.partition_entry_lba * SECTOR_SIZE;
 	for (std::size_t i = 0; i < gpt_header.number_of_partition_entries; i++)
 	{
 		const auto& partition_entry = *reinterpret_cast<const GPTPartitionEntry*>(partition_entry_array_start + i * gpt_header.size_of_partition_entry);
-		if (partition_entry.partition_guid != guid)
-			continue;
-		return partition_entry;
+		if (memcmp(partition_entry.name, gpt_name, sizeof(gpt_name)) == 0)
+			return partition_entry;
 	}
 	return {};
 }
@@ -207,9 +214,8 @@ std::optional<GPTPartitionEntry> GPTFile::find_partition_with_type(const GUID& t
 	for (std::size_t i = 0; i < gpt_header.number_of_partition_entries; i++)
 	{
 		const auto& partition_entry = *reinterpret_cast<const GPTPartitionEntry*>(partition_entry_array_start + i * gpt_header.size_of_partition_entry);
-		if (partition_entry.type_guid != type_guid)
-			continue;
-		return partition_entry;
+		if (partition_entry.type_guid == type_guid)
+			return partition_entry;
 	}
 	return {};
 }
