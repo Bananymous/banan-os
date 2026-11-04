@@ -1022,7 +1022,7 @@ namespace Kernel
 					{
 						if (pml4e == e_pml4e && pdpte == e_pdpte && pde == e_pde && pte > e_pte)
 							break;
-						if (!(pt[pte] & Flags::Used))
+						if (pt != s_fast_page_pt && !(pt[pte] & Flags::Used))
 						{
 							if (++free_count >= page_count)
 								goto found_free_region;
