@@ -1,0 +1,13 @@
+diff -ruN parted-3.8/configure parted-3.8-banan_os/configure
+--- parted-3.8/configure	2026-09-24 01:56:49.000000000 +0300
++++ parted-3.8-banan_os/configure	2026-11-03 01:00:09.918666902 +0200
+@@ -5751,7 +5751,8 @@
+ 	linux*|uclinux*) OS=linux ;;
+ 	gnu*)	OS=gnu ;;
+ 	beos*)	OS=beos ;;
+-	*)	as_fn_error $? "Unknown or unsupported OS \"$host_os\".  Only \"linux\", \"uclinux\", \"gnu\" and \"beos\" are supported in this version of GNU Parted." "$LINENO" 5 ;;
++	banan_os*)	OS=banan_os ;;
++	*)	as_fn_error $? "Unknown or unsupported OS \"$host_os\".  Only \"linux\", \"uclinux\", \"gnu\", \"beos\" and \"banan-os\" are supported in this version of GNU Parted." "$LINENO" 5 ;;
+ esac
+ 
+ 

@@ -1,0 +1,12 @@
+diff -ruN parted-3.8/libparted/fs/xfs/platform_defs.h parted-3.8-banan_os/libparted/fs/xfs/platform_defs.h
+--- parted-3.8/libparted/fs/xfs/platform_defs.h	2026-09-24 01:25:14.000000000 +0300
++++ parted-3.8-banan_os/libparted/fs/xfs/platform_defs.h	2026-11-04 01:25:59.151643602 +0200
+@@ -52,7 +52,7 @@
+ # define constpp	char * const *
+ #endif
+ 
+-typedef loff_t		xfs_off_t;
++typedef off_t		xfs_off_t;
+ typedef uint64_t	xfs_ino_t;
+ typedef uint32_t	xfs_dev_t;
+ typedef int64_t         xfs_daddr_t;

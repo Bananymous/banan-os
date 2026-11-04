@@ -1,0 +1,16 @@
+diff -ruN parted-3.8/libparted/labels/atari.c parted-3.8-banan_os/libparted/labels/atari.c
+--- parted-3.8/libparted/labels/atari.c	2026-09-24 01:25:14.000000000 +0300
++++ parted-3.8-banan_os/libparted/labels/atari.c	2026-11-04 12:42:22.022728809 +0200
+@@ -223,9 +223,9 @@
+ 	start = PED_BE32_TO_CPU (part->start);
+ 	size = PED_BE32_TO_CPU (part->size);
+ 
+-	return isalnum_l(part->id[0], atr_c_locale)
+-		&& isalnum_l(part->id[1], atr_c_locale)
+-		&& isalnum_l(part->id[2], atr_c_locale)
++	return isalnum(part->id[0])
++		&& isalnum(part->id[1])
++		&& isalnum(part->id[2])
+ 		&& atr_start_size_correct (start, size, hd_size);
+ }
+ 

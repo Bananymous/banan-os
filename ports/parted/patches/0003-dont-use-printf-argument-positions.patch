@@ -1,0 +1,12 @@
+diff -ruN parted-3.8/libparted/unit.c parted-3.8-banan_os/libparted/unit.c
+--- parted-3.8/libparted/unit.c	2026-09-24 01:25:14.000000000 +0300
++++ parted-3.8-banan_os/libparted/unit.c	2026-11-04 10:38:11.150386060 +0200
+@@ -248,7 +248,7 @@
+ 	    (w < 100.) ? 1 :
+ 			 0 ;
+ 
+-#ifdef __BEOS__
++#if defined(__BEOS__) || defined(__banan_os__)
+ 	snprintf (buf, 100, "%.*f%s", p, d, ped_unit_get_name(unit));
+ #else
+ 	snprintf (buf, 100, "%1$.*2$f%3$s", d, p, ped_unit_get_name (unit));
