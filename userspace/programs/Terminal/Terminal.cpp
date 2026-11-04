@@ -768,12 +768,12 @@ Rectangle Terminal::handle_csi(char ch)
 		{
 			const uint32_t count = (m_csi_info.fields[0] == -1) ? 1 : m_csi_info.fields[0];
 
-			for (size_t i = m_cursor.y; i + count < rows(); i++)
-				for (size_t col = 0; col < cols(); col++)
-					m_cells[(i + count) * cols() + col] = m_cells[i * cols() + col];
-			for (size_t row = m_cursor.y; row < m_cursor.y + count; row++)
-				for (size_t col = 0; col < cols(); col++)
-					m_cells[row * cols() + col] = {
+			for (size_t y = rows() - 1; y >= m_cursor.y + count; y--)
+				for (size_t x = 0; x < cols(); x++)
+					m_cells[y * cols() + x] = m_cells[(y - count) * cols() + x];
+			for (size_t y = m_cursor.y; y < m_cursor.y + count; y++)
+				for (size_t x = 0; x < cols(); x++)
+					m_cells[y * cols() + x] = {
 						.codepoint = 0,
 						.fg_color = fg_color,
 						.bg_color = bg_color,
@@ -787,12 +787,12 @@ Rectangle Terminal::handle_csi(char ch)
 		{
 			const uint32_t count = (m_csi_info.fields[0] == -1) ? 1 : m_csi_info.fields[0];
 
-			for (size_t i = m_cursor.y; i + count < rows(); i++)
-				for (size_t col = 0; col < cols(); col++)
-					m_cells[i * cols() + col] = m_cells[(i + count) * cols() + col];
-			for (size_t row = m_cursor.y + count; row < rows(); row++)
-				for (size_t col = 0; col < cols(); col++)
-					m_cells[row * cols() + col] = {
+			for (size_t y = m_cursor.y; y + count < rows(); y++)
+				for (size_t x = 0; x < cols(); x++)
+					m_cells[y * cols() + x] = m_cells[(y + count) * cols() + x];
+			for (size_t y = rows() - count; y < rows(); y++)
+				for (size_t x = 0; x < cols(); x++)
+					m_cells[y * cols() + x] = {
 						.codepoint = 0,
 						.fg_color = fg_color,
 						.bg_color = bg_color,
@@ -806,10 +806,10 @@ Rectangle Terminal::handle_csi(char ch)
 		{
 			const uint32_t count = (m_csi_info.fields[0] == -1) ? 1 : m_csi_info.fields[0];
 
-			for (size_t i = m_cursor.x; i + count < cols(); i++)
-				m_cells[m_cursor.y * cols() + i] = m_cells[m_cursor.y * cols() + i + count];
-			for (size_t i = m_cursor.x + count; i < cols(); i++)
-				m_cells[m_cursor.y * cols() + i] = {
+			for (size_t x = m_cursor.x; x + count < cols(); x++)
+				m_cells[m_cursor.y * cols() + x] = m_cells[m_cursor.y * cols() + (x + count)];
+			for (size_t x = cols() - count; x < cols(); x++)
+				m_cells[m_cursor.y * cols() + x] = {
 					.codepoint = 0,
 					.fg_color = fg_color,
 					.bg_color = bg_color,
@@ -823,10 +823,10 @@ Rectangle Terminal::handle_csi(char ch)
 		{
 			const uint32_t count = (m_csi_info.fields[0] == -1) ? 1 : m_csi_info.fields[0];
 
-			for (size_t i = m_cursor.x; i + count < cols(); i++)
-				m_cells[m_cursor.y * cols() + i + count] = m_cells[m_cursor.y * cols() + i];
-			for (size_t i = m_cursor.x; i < m_cursor.x + count; i++)
-				m_cells[m_cursor.y * cols() + i] = {
+			for (size_t x = cols() - 1; x >= m_cursor.x + count; x--)
+				m_cells[m_cursor.y * cols() + x] = m_cells[m_cursor.y * cols() + (x - count)];
+			for (size_t x = m_cursor.x; x < m_cursor.x + count; x++)
+				m_cells[m_cursor.y * cols() + x] = {
 					.codepoint = 0,
 					.fg_color = fg_color,
 					.bg_color = bg_color,
