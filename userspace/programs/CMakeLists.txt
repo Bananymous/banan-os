@@ -42,6 +42,7 @@ set(USERSPACE_PROGRAMS
 	resolver
 	rm
 	Shell
+	sed
 	sleep
 	snake
 	sort
