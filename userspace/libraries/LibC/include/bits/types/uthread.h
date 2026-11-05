@@ -55,6 +55,7 @@ struct uthread
 	int cancel_type;
 	int cancel_state;
 	volatile int canceled;
+	size_t allocator_id;
 	_pthread_cleanup_t* cleanup_funcs;
 	pthread_key_t specific_keys[PTHREAD_KEYS_MAX];
 	void* specific_vals[PTHREAD_KEYS_MAX];

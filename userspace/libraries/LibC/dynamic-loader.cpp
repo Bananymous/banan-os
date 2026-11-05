@@ -1881,6 +1881,7 @@ static uintptr_t _libc_main(int argc, char* argv[], char* envp[])
 		.cancel_type = PTHREAD_CANCEL_DEFERRED,
 		.cancel_state = PTHREAD_CANCEL_DISABLE,
 		.canceled = false,
+		.allocator_id = 0,
 		.cleanup_funcs = nullptr,
 		.specific_keys = {},
 		.specific_vals = {},

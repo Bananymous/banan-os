@@ -454,6 +454,7 @@ int pthread_create(pthread_t* __restrict thread, const pthread_attr_t* __restric
 			.cancel_type = PTHREAD_CANCEL_DEFERRED,
 			.cancel_state = PTHREAD_CANCEL_ENABLE,
 			.canceled = 0,
+			.allocator_id = 0,
 			.cleanup_funcs = nullptr,
 			.specific_keys = {},
 			.specific_vals = {},

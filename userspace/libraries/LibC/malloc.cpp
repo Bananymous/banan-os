@@ -12,15 +12,30 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-static constexpr size_t s_allocator_chunk_size { 64 };
+static constexpr size_t s_allocator_chunk_size {          64 };
 static constexpr size_t s_allocator_size       { 1024 * 1024 };
-static constexpr size_t s_mmap_threshold       {   64 * 1024 };
+static constexpr size_t s_mmap_threshold       {   16 * 1024 };
 
 struct alignas(max_align_t) MmapAllocationHeader
 {
 	size_t mmap_size;
 	size_t offset;
 };
+
+#define SCOPED_PTHREAD_LOCK(name, lock_fun) \
+	struct scoped_pthread_##name##_##lock_fun { \
+		scoped_pthread_##name##_##lock_fun(pthread_##name##_t& lock) : lock(lock) { \
+			pthread_##name##_##lock_fun(&lock); \
+		} \
+		~scoped_pthread_##name##_##lock_fun() { \
+			pthread_##name##_unlock(&lock); \
+		} \
+		pthread_##name##_t& lock; \
+	}
+SCOPED_PTHREAD_LOCK(mutex, lock);
+SCOPED_PTHREAD_LOCK(rwlock, rdlock);
+SCOPED_PTHREAD_LOCK(rwlock, wrlock);
+#undef SCOPED_PTHREAD_LOCK
 
 struct BitmapAllocator
 {
@@ -29,18 +44,25 @@ struct BitmapAllocator
 		size_t chunks { 0 };
 	};
 
+	pthread_mutex_t mutex  {   };
 	uint32_t bitmap_chunks { 0 };
 	uint32_t total_chunks  { 0 };
 	uint32_t free_chunks   { 0 };
 	uint32_t allocations   { 0 };
 	uint8_t* base          { nullptr };
 
+	size_t   id            { 0 };
+	bool     owned         { false };
+
+	uint32_t largest_block { 0 };
+	uint32_t last_alloc    { 0 };
+
 	static size_t needed_chunks(size_t size)
 	{
 		return BAN::Math::div_round_up(sizeof(BitmapAllocator::Header) + size, s_allocator_chunk_size);
 	}
 
-	bool initialize()
+	bool initialize(size_t id)
 	{
 		void* base = mmap(nullptr, s_allocator_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 		if (base == MAP_FAILED)
@@ -50,10 +72,17 @@ struct BitmapAllocator
 		constexpr size_t bitmap_chunks = BAN::Math::div_round_up(bitmap_bytes, s_allocator_chunk_size);
 		constexpr size_t usable_chunks = s_allocator_size / s_allocator_chunk_size - bitmap_chunks;
 
+		this->mutex         = PTHREAD_MUTEX_INITIALIZER;
 		this->bitmap_chunks = bitmap_chunks;
 		this->total_chunks  = usable_chunks;
 		this->free_chunks   = usable_chunks;
 		this->base          = static_cast<uint8_t*>(base);
+
+		this->id    = id;
+		this->owned = false;
+
+		this->largest_block = this->free_chunks;
+		this->last_alloc    = 0;
 
 		return true;
 	}
@@ -77,19 +106,41 @@ struct BitmapAllocator
 	{
 		assert(index < total_chunks);
 		const size_t byte = index / 8;
-		const size_t bit = index % 8;
+		const size_t bit  = index % 8;
 		return (base[byte] >> bit) & 1;
 	}
 
-	void set_bit(size_t index, bool value)
+	template<bool VALUE>
+	void set_bits(size_t index, size_t count)
 	{
-		assert(index < total_chunks);
-		const size_t byte = index / 8;
-		const size_t bit = index % 8;
-		if (value)
-			base[byte] |= 1 << bit;
-		else
-			base[byte] &= ~(1 << bit);
+		assert(index + count <= total_chunks);
+
+		constexpr auto bitwise_func = [](size_t& word, size_t mask) {
+			VALUE ? (word |= mask) : (word &= ~mask);
+		};
+
+		constexpr size_t acc_bits = sizeof(size_t) * 8;
+		size_t* base_acc = reinterpret_cast<size_t*>(base);
+
+		if (const auto rem = index % acc_bits; rem && count >= acc_bits - rem)
+		{
+			bitwise_func(base_acc[index / acc_bits], SIZE_MAX << rem);
+			index += acc_bits - rem;
+			count -= acc_bits - rem;
+		}
+
+		while (count >= acc_bits)
+		{
+			base_acc[index / acc_bits] = VALUE ? SIZE_MAX : 0;
+			index += acc_bits;
+			count -= acc_bits;
+		}
+
+		if (count > 0)
+		{
+			const size_t mask = (static_cast<size_t>(1) << count) - 1;
+			bitwise_func(base_acc[index / acc_bits], mask << (index % acc_bits));
+		}
 	}
 
 	size_t find_unset_bit(size_t index) const
@@ -100,20 +151,23 @@ struct BitmapAllocator
 		if (index >= total_chunks)
 			return index;
 
-		if (const auto rem = index % 64)
+		constexpr size_t acc_bits = sizeof(size_t) * 8;
+		const size_t* base_acc = reinterpret_cast<const size_t*>(base);
+
+		if (const auto rem = index % acc_bits)
 		{
-			const uint64_t qword = *reinterpret_cast<const uint64_t*>(base + (index - rem) / 8) >> rem;
-			if (qword != UINT64_MAX >> rem)
-				return index + BAN::Math::ctz(~qword);
-			index += 64 - rem;
+			const auto word = base_acc[index / acc_bits] >> rem;
+			if (word != SIZE_MAX >> rem)
+				return index + BAN::Math::ctz(~word);
+			index += acc_bits - rem;
 		}
 
 		while (index < total_chunks)
 		{
-			const uint64_t qword = *reinterpret_cast<const uint64_t*>(base + index / 8);
-			if (qword != UINT64_MAX)
-				return index + BAN::Math::ctz(~qword);
-			index += 64;
+			const auto word = base_acc[index / acc_bits];
+			if (word != SIZE_MAX)
+				return index + BAN::Math::ctz(~word);
+			index += acc_bits;
 		}
 
 		return index;
@@ -136,30 +190,64 @@ struct BitmapAllocator
 	void* allocate(size_t size)
 	{
 		const size_t needed_chunks = this->needed_chunks(size);
-		if (needed_chunks > free_chunks)
-			return nullptr;
 
-		for (size_t i = find_unset_bit(0); i <= total_chunks - needed_chunks; i = find_unset_bit(i))
+		if (pthread_mutex_trylock(&mutex) != 0)
+			goto allocate_failed_no_lock;
+
+		if (needed_chunks > largest_block)
+			goto allocate_failed;
+
+		size_t largest_found;
+		largest_found = 0;
+
+		size_t first_chunk, last_chunk;
+		first_chunk = last_alloc;
+		last_chunk  = total_chunks;
+
+	allocate_loop:
+		for (size_t i = find_unset_bit(first_chunk); i + needed_chunks <= last_chunk; i = find_unset_bit(i))
 		{
 			if (const size_t count = count_unset_bits(i, needed_chunks); count < needed_chunks)
 			{
+				if (count > largest_found)
+					largest_found = count;
 				i += count + 1;
 				continue;
 			}
 
-			for (size_t j = 0; j < needed_chunks; j++)
-				set_bit(i + j, true);
+			set_bits<true>(i, needed_chunks);
 
 			auto& header = header_from_chunk(i);
-			header = {
-				.chunks = needed_chunks,
-			};
+			header = { .chunks = needed_chunks };
 
-			free_chunks -= header.chunks;
-			allocations++;
+			BAN::atomic_sub_fetch(free_chunks, header.chunks);
+			BAN::atomic_add_fetch(allocations, 1);
 
+			pthread_self()->allocator_id = id;
+			owned = true;
+
+			last_alloc = i + needed_chunks;
+
+			pthread_mutex_unlock(&mutex);
 			return &header + 1;
 		}
+
+		if (first_chunk > 0)
+		{
+			last_chunk  = first_chunk;
+			first_chunk = 0;
+			goto allocate_loop;
+		}
+
+		largest_block = largest_found;
+		last_alloc = 0;
+
+	allocate_failed:
+		pthread_mutex_unlock(&mutex);
+
+	allocate_failed_no_lock:
+		pthread_self()->allocator_id = 0;
+		owned = false;
 
 		return nullptr;
 	}
@@ -168,29 +256,29 @@ struct BitmapAllocator
 	{
 		assert(contains(ptr));
 
+		scoped_pthread_mutex_lock _(mutex);
+
 		const size_t first_chunk = get_first_chunk(ptr);
 		auto& header = header_from_chunk(first_chunk);
 
 		const size_t needed_chunks = this->needed_chunks(size);
 		if (needed_chunks <= header.chunks)
 		{
-			for (size_t i = needed_chunks; i < header.chunks; i++)
-				set_bit(first_chunk + i, false);
-			free_chunks += header.chunks - needed_chunks;
+			const size_t extra_chunks = header.chunks - needed_chunks;
+			set_bits<false>(first_chunk + needed_chunks, extra_chunks);
+			BAN::atomic_add_fetch(free_chunks, extra_chunks);
+			largest_block += extra_chunks;
 		}
 		else
 		{
-			const size_t extra_chunks = header.chunks - needed_chunks;
+			const size_t extra_chunks = needed_chunks - header.chunks;
 			if (count_unset_bits(first_chunk + header.chunks, extra_chunks) < extra_chunks)
 				return false;
-			for (size_t i = header.chunks; i < needed_chunks; i++)
-				set_bit(first_chunk + i, true);
-			free_chunks -= needed_chunks - header.chunks;
+			set_bits<true>(first_chunk + header.chunks, extra_chunks);
+			BAN::atomic_sub_fetch(free_chunks, extra_chunks);
 		}
 
-		header = {
-			.chunks = needed_chunks,
-		};
+		header = { .chunks = needed_chunks };
 		return true;
 	}
 
@@ -198,14 +286,15 @@ struct BitmapAllocator
 	{
 		assert(contains(ptr));
 
+		scoped_pthread_mutex_lock _(mutex);
+
 		const size_t first_chunk = get_first_chunk(ptr);
+		const auto header = header_from_chunk(first_chunk);
 
-		auto& header = header_from_chunk(first_chunk);
-		for (size_t i = 0; i < header.chunks; i++)
-			set_bit(first_chunk + i, false);
-
-		free_chunks += header.chunks;
-		allocations--;
+		set_bits<false>(first_chunk, header.chunks);
+		BAN::atomic_add_fetch(free_chunks, header.chunks);
+		BAN::atomic_sub_fetch(allocations, 1);
+		largest_block += header.chunks;
 	}
 
 	size_t allocation_size(void* ptr)
@@ -219,7 +308,26 @@ static size_t s_allocator_count { 0 };
 static size_t s_allocator_capacity { 0 };
 
 static BitmapAllocator* s_allocators { nullptr };
-FORK_SAFE_MUTEX(900, s_allocator_lock, PTHREAD_MUTEX_INITIALIZER);
+static pthread_rwlock_t s_global_allocator_lock { PTHREAD_RWLOCK_INITIALIZER };
+
+FORK_HOOK(
+	.priority = 900,
+	.prepare = [] {
+		pthread_rwlock_wrlock(&s_global_allocator_lock);
+		for (size_t i = 0; i < s_allocator_count; i++)
+			pthread_mutex_lock(&s_allocators[i].mutex);
+	},
+	.parent = [] {
+		for (size_t i = 0; i < s_allocator_count; i++)
+			pthread_mutex_unlock(&s_allocators[i].mutex);
+		pthread_rwlock_unlock(&s_global_allocator_lock);
+	},
+	.child = [] {
+		for (size_t i = 0; i < s_allocator_count; i++)
+			s_allocators[i].mutex = PTHREAD_MUTEX_INITIALIZER;
+		s_global_allocator_lock = PTHREAD_RWLOCK_INITIALIZER;
+	}
+);
 
 static BAN::Atomic<size_t> s_mmap_count { 0 };
 static BAN::Atomic<size_t> s_mmap_bytes { 0 };
@@ -249,13 +357,18 @@ void* malloc(size_t total_size)
 		return &header + 1;
 	}
 
-	void* result = nullptr;
+	{
+		scoped_pthread_rwlock_rdlock _(s_global_allocator_lock);
+		if (const size_t id = pthread_self()->allocator_id; id && id <= s_allocator_count)
+			if (void* result = s_allocators[id - 1].allocate(total_size))
+				return result;
+		for (size_t i = 0; i < s_allocator_count; i++)
+			if (s_allocators[i].owned == false)
+				if (void* result = s_allocators[i].allocate(total_size))
+					return result;
+	}
 
-	pthread_mutex_lock(&s_allocator_lock);
-
-	for (size_t i = 0; i < s_allocator_count; i++)
-		if ((result = s_allocators[i].allocate(total_size)))
-			goto malloc_return;
+	scoped_pthread_rwlock_wrlock _(s_global_allocator_lock);
 
 	if (s_allocator_count == s_allocator_capacity)
 	{
@@ -265,7 +378,7 @@ void* malloc(size_t total_size)
 
 		void* new_allocators = mmap(nullptr, new_allocator_pages * page_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 		if (new_allocators == MAP_FAILED)
-			goto malloc_return;
+			return nullptr;
 
 		if (s_allocators != nullptr)
 		{
@@ -278,16 +391,10 @@ void* malloc(size_t total_size)
 		s_allocator_capacity = new_allocator_pages * page_size / sizeof(BitmapAllocator);
 	}
 
-	if (!s_allocators[s_allocator_count].initialize())
-		goto malloc_return;
-	result = s_allocators[s_allocator_count++].allocate(total_size);
+	if (!s_allocators[s_allocator_count].initialize(s_allocator_count + 1))
+		return nullptr;
 
-malloc_return:
-	pthread_mutex_unlock(&s_allocator_lock);
-
-	if (result == nullptr)
-		errno = ENOMEM;
-	return result;
+	return s_allocators[s_allocator_count++].allocate(total_size);
 }
 
 void free(void* ptr)
@@ -295,16 +402,15 @@ void free(void* ptr)
 	if (ptr == nullptr)
 		return;
 
-	pthread_mutex_lock(&s_allocator_lock);
-	for (size_t i = 0; i < s_allocator_count; i++)
 	{
-		if (!s_allocators[i].contains(ptr))
-			continue;
-		s_allocators[i].free(ptr);
-		pthread_mutex_unlock(&s_allocator_lock);
-		return;
+		scoped_pthread_rwlock_rdlock _(s_global_allocator_lock);
+		if (const size_t id = pthread_self()->allocator_id; id && id <= s_allocator_count)
+			if (s_allocators[id - 1].contains(ptr))
+				return s_allocators[id - 1].free(ptr);
+		for (size_t i = 0; i < s_allocator_count; i++)
+			if (s_allocators[i].contains(ptr))
+				return s_allocators[i].free(ptr);
 	}
-	pthread_mutex_unlock(&s_allocator_lock);
 
 	const auto& header = static_cast<MmapAllocationHeader*>(ptr)[-1];
 	s_mmap_count--;
@@ -320,21 +426,19 @@ void* realloc(void* ptr, size_t size)
 	bool was_mmapped = true;
 	size_t old_alloc_size = 0;
 
-	pthread_mutex_lock(&s_allocator_lock);
-	for (size_t i = 0; i < s_allocator_count; i++)
 	{
-		if (!s_allocators[i].contains(ptr))
-			continue;
-		if (s_allocators[i].resize(ptr, size))
+		scoped_pthread_rwlock_rdlock _(s_global_allocator_lock);
+		for (size_t i = 0; i < s_allocator_count; i++)
 		{
-			pthread_mutex_unlock(&s_allocator_lock);
-			return ptr;
+			if (!s_allocators[i].contains(ptr))
+				continue;
+			if (s_allocators[i].resize(ptr, size))
+				return ptr;
+			old_alloc_size = s_allocators[i].allocation_size(ptr);
+			was_mmapped = false;
+			break;
 		}
-		was_mmapped = false;
-		old_alloc_size = s_allocators[i].allocation_size(ptr);
-		break;
 	}
-	pthread_mutex_unlock(&s_allocator_lock);
 
 	if (was_mmapped)
 	{
@@ -480,16 +584,12 @@ size_t malloc_usable_size(void* ptr)
 	if (ptr == nullptr)
 		return 0;
 
-	pthread_mutex_lock(&s_allocator_lock);
-	for (size_t i = 0; i < s_allocator_count; i++)
 	{
-		if (!s_allocators[i].contains(ptr))
-			continue;
-		const size_t size = s_allocators[i].allocation_size(ptr);
-		pthread_mutex_unlock(&s_allocator_lock);
-		return size;
+		scoped_pthread_rwlock_rdlock _(s_global_allocator_lock);
+		for (size_t i = 0; i < s_allocator_count; i++)
+			if (s_allocators[i].contains(ptr))
+				return s_allocators[i].allocation_size(ptr);
 	}
-	pthread_mutex_unlock(&s_allocator_lock);
 
 	const auto& header = static_cast<MmapAllocationHeader*>(ptr)[-1];
 	return header.mmap_size - header.offset;
@@ -522,16 +622,15 @@ struct mallinfo2 mallinfo2(void)
 {
 	struct mallinfo2 info {};
 
-	pthread_mutex_lock(&s_allocator_lock);
+	scoped_pthread_rwlock_rdlock _(s_global_allocator_lock);
 	info.arena = s_allocator_count * s_allocator_size;
 	for (size_t i = 0; i < s_allocator_count; i++)
 	{
-		const size_t total_mem = s_allocators[i].total_chunks * s_allocator_chunk_size;
-		const size_t free_mem  = s_allocators[i].free_chunks  * s_allocator_chunk_size;
+		const size_t total_mem = BAN::atomic_load(s_allocators[i].total_chunks) * s_allocator_chunk_size;
+		const size_t free_mem  = BAN::atomic_load(s_allocators[i].free_chunks)  * s_allocator_chunk_size;
 		info.fordblks += free_mem;
 		info.uordblks += total_mem - free_mem;
 	}
-	pthread_mutex_unlock(&s_allocator_lock);
 
 	info.hblks     = s_mmap_count.load();
 	info.hblkhd    = s_mmap_bytes.load();
