@@ -1053,8 +1053,9 @@ int pthread_rwlock_init(pthread_rwlock_t* __restrict rwlock, const pthread_rwloc
 	*rwlock = {
 		.lock = {},
 		.cond = {},
-		.writer_active = 0,
 		.readers_active = 0,
+		.writer_active = 0,
+		.waiting = 0,
 	};
 
 	const pthread_mutexattr_t mattr {
@@ -1093,8 +1094,10 @@ int pthread_rwlock_timedrdlock(pthread_rwlock_t* __restrict rwlock, const struct
 {
 	int ret = 0;
 	pthread_mutex_lock(&rwlock->lock);
+	rwlock->waiting++;
 	while (ret == 0 && rwlock->writer_active)
 		ret = pthread_cond_timedwait(&rwlock->cond, &rwlock->lock, abstime);
+	rwlock->waiting--;
 	if (ret == 0)
 		rwlock->readers_active++;
 	pthread_mutex_unlock(&rwlock->lock);
@@ -1122,8 +1125,10 @@ int pthread_rwlock_timedwrlock(pthread_rwlock_t* __restrict rwlock, const struct
 {
 	int ret = 0;
 	pthread_mutex_lock(&rwlock->lock);
+	rwlock->waiting++;
 	while (ret == 0 && (rwlock->readers_active || rwlock->writer_active))
 		ret = pthread_cond_timedwait(&rwlock->cond, &rwlock->lock, abstime);
+	rwlock->waiting--;
 	if (ret == 0)
 		rwlock->writer_active = 1;
 	pthread_mutex_unlock(&rwlock->lock);
@@ -1136,13 +1141,14 @@ int pthread_rwlock_unlock(pthread_rwlock_t* rwlock)
 	if (rwlock->writer_active)
 	{
 		rwlock->writer_active = 0;
-		pthread_cond_broadcast(&rwlock->cond);
+		if (rwlock->waiting)
+			pthread_cond_broadcast(&rwlock->cond);
 	}
 	else
 	{
 		ASSERT(rwlock->readers_active > 0);
 		rwlock->readers_active--;
-		if (rwlock->readers_active == 0)
+		if (rwlock->waiting && rwlock->readers_active == 0)
 			pthread_cond_broadcast(&rwlock->cond);
 	}
 	pthread_mutex_unlock(&rwlock->lock);

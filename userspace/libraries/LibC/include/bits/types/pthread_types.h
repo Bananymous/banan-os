@@ -62,8 +62,9 @@ typedef struct
 {
 	pthread_mutex_t lock;
 	pthread_cond_t cond;
-	unsigned writer_active;
-	unsigned readers_active;
+	unsigned readers_active : 31;
+	unsigned writer_active  :  1;
+	unsigned waiting;
 } pthread_rwlock_t;
 
 __END_DECLS
