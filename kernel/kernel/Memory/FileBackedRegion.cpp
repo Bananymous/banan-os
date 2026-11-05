@@ -82,7 +82,7 @@ namespace Kernel
 				{
 					if (!(m_page_table.get_page_flags(vaddr) & PageTable::Flags::ReadWrite))
 						continue;
-					const size_t index = (vaddr - m_vaddr) / PAGE_SIZE;
+					const size_t index = (m_offset + vaddr - m_vaddr) / PAGE_SIZE;
 					if (BAN::atomic_sub_fetch(m_shared_data->writers[index], 1) == 0)
 						if (auto ret = m_shared_data->sync_no_lock(index); ret.is_error())
 							dwarnln("failed to sync mmapped file backing: {}", ret.error());
@@ -156,7 +156,7 @@ namespace Kernel
 		{
 			if (!(m_page_table.get_page_flags(vaddr) & PageTable::Flags::ReadWrite))
 				continue;
-			const size_t index = (vaddr - m_vaddr) / PAGE_SIZE;
+			const size_t index = (m_offset + vaddr - m_vaddr) / PAGE_SIZE;
 			if (BAN::atomic_sub_fetch(m_shared_data->writers[index], 1) == 0)
 				TRY(m_shared_data->sync_no_lock(index));
 		}
@@ -172,8 +172,8 @@ namespace Kernel
 
 		const vaddr_t vaddr = address & PAGE_ADDR_MASK;
 
-		const size_t local_page_index  = (vaddr - m_vaddr) / PAGE_SIZE;
-		const size_t shared_page_index = local_page_index + m_offset / PAGE_SIZE;
+		const size_t local_page_index  = (           vaddr - m_vaddr) / PAGE_SIZE;
+		const size_t shared_page_index = (m_offset + vaddr - m_vaddr) / PAGE_SIZE;
 
 		if (m_page_table.physical_address_of(vaddr) == 0)
 		{
