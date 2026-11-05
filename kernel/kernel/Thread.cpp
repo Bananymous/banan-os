@@ -104,7 +104,7 @@ namespace Kernel
 		return SIGRTMIN <= signal && signal <= SIGRTMAX;
 	}
 
-	static bool is_default_ignored_signal(int signal)
+	bool Thread::is_default_ignored_signal(int signal)
 	{
 		switch (signal)
 		{
@@ -287,14 +287,22 @@ namespace Kernel
 		m_cpu_time_start_ns = UINT64_MAX;
 	}
 
-	void Thread::set_is_in_syscall(bool is_in_syscall)
+	void Thread::set_is_in_syscall(bool enter_syscall)
 	{
 		SpinLockGuard _(m_cpu_time_lock);
+		ASSERT(m_is_in_syscall != enter_syscall);
+
 		const uint64_t current_ns = SystemTimer::get().ns_since_boot();
-		uint64_t& value = m_is_in_syscall ? m_cpu_time_system_ns : m_cpu_time_user_ns;
-		value += current_ns - m_cpu_time_start_ns;
-		m_is_in_syscall = is_in_syscall;
+		(m_is_in_syscall ? m_cpu_time_system_ns : m_cpu_time_user_ns)
+			+= current_ns - m_cpu_time_start_ns;
 		m_cpu_time_start_ns = current_ns;
+
+		m_is_in_syscall = enter_syscall;
+
+		if (enter_syscall)
+			ASSERT(!m_signal_restore_mask.has_value());
+		else if (m_signal_restore_mask.has_value())
+			m_signal_block_mask = m_signal_restore_mask.release_value();
 	}
 
 	BAN::ErrorOr<Thread*> Thread::clone(Process* new_process, uintptr_t sp, uintptr_t ip)
@@ -396,50 +404,28 @@ namespace Kernel
 	{
 		if (!is_userspace() || m_state != State::Executing)
 			return false;
-		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(kernel_stack_top() - sizeof(InterruptStack));
+
+		const auto& interrupt_stack = *reinterpret_cast<const InterruptStack*>(kernel_stack_top() - sizeof(InterruptStack));
 		if (!GDT::is_user_segment(interrupt_stack.cs))
 			return false;
 
-		uint64_t full_pending_mask = m_signal_pending_mask | process().signal_pending_mask();
-		uint64_t signals = full_pending_mask & ~m_signal_block_mask;
-		for (uint8_t i = 0; i < _SIGMAX; i++)
+		SpinLockGuard _(m_process->m_signal_lock);
+
+		const uint64_t pending_mask = (m_signal_pending_mask | m_process->m_signal_pending_mask) & ~m_signal_block_mask;
+		for (int signal = _SIGMIN; signal < _SIGMAX; signal++)
 		{
-			if (!(signals & ((uint64_t)1 << i)))
+			if (!(pending_mask & (1ull << signal)))
 				continue;
-			if (skip_stop_and_cont && (is_stopping_signal(i) || is_continuing_signal(i)))
+			if (skip_stop_and_cont && (is_stopping_signal(signal) || is_continuing_signal(signal)))
 				continue;
 
-			vaddr_t signal_handler;
-			{
-				SpinLockGuard _(m_process->m_signal_lock);
-				const auto& handler = m_process->m_signal_handlers[i];
-				signal_handler = (handler.sa_flags & SA_SIGINFO)
-					? reinterpret_cast<vaddr_t>(handler.sa_sigaction)
-					: reinterpret_cast<vaddr_t>(handler.sa_handler);
-			}
-			if (signal_handler == reinterpret_cast<vaddr_t>(SIG_IGN))
+			const auto handler = m_process->m_signal_handlers[signal].sa_handler;
+			if (handler == SIG_IGN || (handler == SIG_DFL && is_default_ignored_signal(signal)))
 				continue;
-			if (signal_handler == reinterpret_cast<vaddr_t>(SIG_DFL) && is_default_ignored_signal(i))
-				continue;
+
 			return true;
 		}
-		return false;
-	}
 
-	bool Thread::will_exit_because_of_signal() const
-	{
-		const uint64_t full_pending_mask = m_signal_pending_mask | process().signal_pending_mask();
-		const uint64_t signals = full_pending_mask & ~m_signal_block_mask;
-		for (size_t sig = _SIGMIN; sig <= _SIGMAX; sig++)
-		{
-			if (!(signals & (static_cast<uint64_t>(1) << sig)))
-				continue;
-			if (!is_terminating_signal(sig) && !is_abnormal_terminating_signal(sig))
-				continue;
-			SpinLockGuard _(m_process->m_signal_lock);
-			if (m_process->m_signal_handlers[sig].sa_handler == SIG_DFL)
-				return true;
-		}
 		return false;
 	}
 
@@ -450,20 +436,18 @@ namespace Kernel
 		signal_handle_info_t handle_info;
 
 		{
-			SpinLockGuard _1(m_signal_lock);
-			SpinLockGuard _2(m_process->m_signal_lock);
+			SpinLockGuard _(m_process->m_signal_lock);
 
-			const uint64_t process_signal_pending_mask = m_process->m_signal_pending_mask;
-			const uint64_t full_pending_mask = (m_signal_pending_mask | process_signal_pending_mask) & ~m_signal_block_mask;
-			if (full_pending_mask == 0) [[likely]]
+			const uint64_t pending_mask = (m_signal_pending_mask | m_process->m_signal_pending_mask) & ~m_signal_block_mask;
+			if (pending_mask == 0) [[likely]]
 				return false;
 
 			for (signal = _SIGMIN; signal <= _SIGMAX; signal++)
-				if (full_pending_mask & (1ull << signal))
+				if (pending_mask & (1ull << signal))
 					break;
 			ASSERT(signal <= _SIGMAX);
 
-			if (process_signal_pending_mask & (1ull << signal))
+			if (m_process->m_signal_pending_mask & (1ull << signal))
 				signal_info = m_process->m_signal_infos[signal];
 			else
 				signal_info = m_signal_infos[signal];
@@ -479,29 +463,17 @@ namespace Kernel
 
 	bool Thread::handle_signal(int signal, const siginfo_t& signal_info)
 	{
+		ASSERT(signal >= _SIGMIN && signal <= _SIGMAX);
 		ASSERT(&Thread::current() == this);
 		ASSERT(is_userspace());
 
-		ASSERT(signal >= _SIGMIN);
-		ASSERT(signal <= _SIGMAX);
-
 		signal_handle_info_t handle_info;
 
-		// If this signal is blocked or ignored, terminate the process
-		bool terminate_process = false;
-
-		{
-			SpinLockGuard _1(m_signal_lock);
-			SpinLockGuard _2(m_process->m_signal_lock);
-
-			if (m_signal_block_mask & (1ull << signal))
-				terminate_process = true;
-
+		const bool terminate_process = ({
+			SpinLockGuard _(m_process->m_signal_lock);
 			handle_info = remove_signal_and_get_info(signal);
-
-			if (handle_info.handler == reinterpret_cast<vaddr_t>(SIG_IGN))
-				terminate_process = true;
-		}
+			(m_signal_block_mask & (1ull << signal)) || handle_info.handler == reinterpret_cast<vaddr_t>(SIG_IGN);
+		});
 
 		if (terminate_process)
 		{
@@ -516,11 +488,8 @@ namespace Kernel
 
 	Thread::signal_handle_info_t Thread::remove_signal_and_get_info(int signal)
 	{
-		ASSERT(m_signal_lock.current_processor_has_lock());
+		ASSERT(signal >= _SIGMIN && signal <= _SIGMAX);
 		ASSERT(m_process->m_signal_lock.current_processor_has_lock());
-
-		ASSERT(signal >= _SIGMIN);
-		ASSERT(signal <= _SIGMAX);
 
 		const uint64_t restore_sigmask = m_signal_block_mask;
 
@@ -544,12 +513,6 @@ namespace Kernel
 
 		m_signal_pending_mask &= ~(1ull << signal);
 		m_process->m_signal_pending_mask &= ~(1ull << signal);
-
-		if (m_signal_suspend_mask.has_value())
-		{
-			m_signal_block_mask = m_signal_suspend_mask.value();
-			m_signal_suspend_mask.clear();
-		}
 
 		return {
 			.handler = signal_handler,
@@ -634,23 +597,13 @@ namespace Kernel
 
 	void Thread::add_signal(int signal, const siginfo_t& info)
 	{
-		SpinLockGuard _(m_signal_lock);
+		ASSERT(m_process);
 
-		if (m_process)
-		{
-			vaddr_t signal_handler;
-			{
-				SpinLockGuard _(m_process->m_signal_lock);
-				const auto& handler = m_process->m_signal_handlers[signal];
-				signal_handler = (handler.sa_flags & SA_SIGINFO)
-					? reinterpret_cast<vaddr_t>(handler.sa_sigaction)
-					: reinterpret_cast<vaddr_t>(handler.sa_handler);
-			}
-			if (signal_handler == reinterpret_cast<vaddr_t>(SIG_IGN))
-				return;
-			if (signal_handler == reinterpret_cast<vaddr_t>(SIG_DFL) && is_default_ignored_signal(signal))
-				return;
-		}
+		SpinLockGuard _(m_process->m_signal_lock);
+
+		const auto handler = m_process->m_signal_handlers[signal].sa_handler;
+		if (handler == SIG_IGN || (handler == SIG_DFL && is_default_ignored_signal(signal)))
+			return;
 
 		const uint64_t mask = 1ull << signal;
 		m_signal_pending_mask |= mask;
@@ -660,17 +613,19 @@ namespace Kernel
 			Processor::scheduler().unblock_thread(this);
 	}
 
-	void Thread::set_suspend_signal_mask(uint64_t sigmask)
+	void Thread::set_syscall_signal_mask(uint64_t sigmask)
 	{
-		SpinLockGuard _(m_signal_lock);
-		ASSERT(!m_signal_suspend_mask.has_value());
-		m_signal_suspend_mask = m_signal_block_mask;
+		ASSERT(m_process);
+
+		SpinLockGuard _(m_process->m_signal_lock);
+		ASSERT(!m_signal_restore_mask.has_value());
+		m_signal_restore_mask = m_signal_block_mask;
 		m_signal_block_mask = sigmask;
 	}
 
 	bool Thread::currently_on_alternate_stack() const
 	{
-		ASSERT(m_signal_lock.current_processor_has_lock());
+		ASSERT(m_process && m_process->m_signal_lock.current_processor_has_lock());
 
 		if (m_signal_alt_stack.ss_flags == SS_ONSTACK)
 			return false;
@@ -683,7 +638,9 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Thread::sigaltstack(const stack_t* ss, stack_t* oss)
 	{
-		SpinLockGuard _(m_signal_lock);
+		ASSERT(m_process);
+
+		SpinLockGuard _(m_process->m_signal_lock);
 
 		const bool on_alt_stack = currently_on_alternate_stack();
 

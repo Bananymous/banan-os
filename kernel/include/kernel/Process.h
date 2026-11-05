@@ -301,35 +301,8 @@ namespace Kernel
 
 		void wait_not_pinned(vaddr_t, size_t);
 
-		uint64_t signal_pending_mask() const
-		{
-			SpinLockGuard _(m_signal_lock);
-			return m_signal_pending_mask;
-		}
-
-		void add_pending_signal(uint8_t signal, const siginfo_t& info)
-		{
-			ASSERT(signal >= _SIGMIN);
-			ASSERT(signal <= _SIGMAX);
-			ASSERT(signal < 64);
-			SpinLockGuard _(m_signal_lock);
-			auto handler = m_signal_handlers[signal].sa_handler;
-			if (handler == SIG_IGN)
-				return;
-			if (handler == SIG_DFL && (signal == SIGCHLD || signal == SIGURG))
-				return;
-			m_signal_pending_mask |= 1ull << signal;
-			m_signal_infos[signal] = info;
-		}
-
-		void remove_pending_signal(uint8_t signal)
-		{
-			ASSERT(signal >= _SIGMIN);
-			ASSERT(signal <= _SIGMAX);
-			ASSERT(signal < 64);
-			SpinLockGuard _(m_signal_lock);
-			m_signal_pending_mask &= ~(1ull << signal);
-		}
+		void add_pending_signal_no_lock(int signal, const siginfo_t& info);
+		void remove_pending_signal_no_lock(int signal);
 
 	private:
 		struct ChildWaitStatus
@@ -395,10 +368,11 @@ namespace Kernel
 		uint64_t m_alarm_interval_ns { 0 };
 		uint64_t m_alarm_wake_time_ns { 0 };
 
-		mutable SpinLock m_signal_lock;
-		siginfo_t        m_signal_infos[_SIGMAX + 1] { };
-		struct sigaction m_signal_handlers[_SIGMAX + 1] { };
-		uint64_t m_signal_pending_mask { 0 };
+		// guards m_signal_* + m_threads + m_exited_threads
+		mutable RecursiveSpinLock m_signal_lock;
+		siginfo_t                 m_signal_infos[_SIGMAX + 1] { };
+		struct sigaction          m_signal_handlers[_SIGMAX + 1] { };
+		uint64_t                  m_signal_pending_mask { 0 };
 
 		BAN::Vector<BAN::String> m_cmdline;
 		BAN::Vector<BAN::String> m_environ;

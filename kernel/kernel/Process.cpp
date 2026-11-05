@@ -74,6 +74,19 @@ namespace Kernel
 		}
 	}
 
+	static void with_process(pid_t pid, const BAN::Function<void(Process&)>& callback)
+	{
+		SpinLockGuard _(s_process_lock);
+
+		for (auto* process : s_processes)
+		{
+			if (process->pid() != pid)
+				continue;
+			callback(*process);
+			break;
+		}
+	}
+
 	Process* Process::create_process(const Credentials& credentials, pid_t parent, pid_t sid, pid_t pgrp)
 	{
 		static BAN::Atomic<pid_t> s_next_id = 1;
@@ -435,9 +448,7 @@ namespace Kernel
 
 	bool Process::on_thread_exit(Thread& thread)
 	{
-		// TODO: if main thread exists, should we delete its stack?
-
-		LockGuard _(m_process_lock);
+		SpinLockGuard _(m_signal_lock);
 
 		ASSERT(m_threads.size() > 0);
 
@@ -471,43 +482,44 @@ namespace Kernel
 			ASSERT_NOT_REACHED();
 		}
 
-		const auto notify_parent = [this, status, signal] {
-			Process* parent = nullptr;
+		{
+			const auto state = m_signal_lock.lock();
 
-			for_each_process(
-				[&](Process& process) -> BAN::Iteration
-				{
-					if (process.pid() != m_parent)
-						return BAN::Iteration::Continue;
-					parent = &process;
-					return BAN::Iteration::Break;
-				}
-			);
+			for (auto* thread : m_threads)
+				if (thread != &Thread::current())
+					thread->add_signal(SIGKILL, {});
 
-			if (parent == nullptr || parent->m_threads.empty())
+			while (m_threads.size() > 1)
+			{
+				m_signal_lock.unlock(state);
+				Processor::yield();
+				m_signal_lock.lock();
+			}
+
+			m_signal_lock.unlock(state);
+		}
+
+		with_process(m_parent, [&](Process& parent) {
+			SpinLockGuard _(parent.m_signal_lock);
+
+			if (parent.m_signal_handlers[SIGCHLD].sa_flags & SA_NOCLDWAIT)
+				return;
+			if (parent.m_signal_handlers[SIGCHLD].sa_handler == SIG_IGN)
 				return;
 
 			{
-				SpinLockGuard _(parent->m_signal_lock);
-				if (parent->m_signal_handlers[SIGCHLD].sa_flags & SA_NOCLDWAIT)
-					return;
-				if (parent->m_signal_handlers[SIGCHLD].sa_handler == SIG_IGN)
-					return;
-			}
-
-			{
-				SpinLockGuard _(parent->m_child_wait_lock);
-				for (auto& child : parent->m_child_wait_statuses)
+				SpinLockGuard _(parent.m_child_wait_lock);
+				for (auto& wait_status : parent.m_child_wait_statuses)
 				{
-					if (child.pid != pid())
+					if (wait_status.pid != pid())
 						continue;
-					child.status = __WGENEXITCODE(status, signal);
-					parent->m_child_wait_blocker.unblock();
+					wait_status.status = __WGENEXITCODE(status, signal);
+					parent.m_child_wait_blocker.unblock();
 					break;
 				}
 			}
 
-			parent->add_pending_signal(SIGCHLD, {
+			parent.add_pending_signal_no_lock(SIGCHLD, {
 				.si_signo = SIGCHLD,
 				.si_code = signal ? CLD_KILLED : CLD_EXITED,
 				.si_errno = 0,
@@ -518,21 +530,7 @@ namespace Kernel
 				.si_band = 0,
 				.si_value = {},
 			});
-
-			Processor::scheduler().unblock_thread(parent->m_threads.front());
-		};
-
-		notify_parent();
-
-		{
-			LockGuard _(m_process_lock);
-			for (auto* thread : m_threads)
-				if (thread != &Thread::current())
-					thread->add_signal(SIGKILL, {});
-		}
-
-		while (m_threads.size() > 1)
-			Processor::yield();
+		});
 
 		Thread::current().on_exit();
 
@@ -665,14 +663,15 @@ namespace Kernel
 		if ((size_t)offset >= sizeof(proc_meminfo_t))
 			return 0;
 
-		proc_meminfo_t meminfo;
-		meminfo.page_size = PAGE_SIZE;
-		meminfo.virt_pages = 0;
-		meminfo.phys_pages = 0;
+		proc_meminfo_t meminfo {
+			.page_size  = PAGE_SIZE,
+			.virt_pages = 0,
+			.phys_pages = 0,
+		};
 
 		{
-			LockGuard _(m_process_lock);
-			for (auto* thread : m_threads)
+			SpinLockGuard _(m_signal_lock);
+			for (const auto* thread : m_threads)
 			{
 				meminfo.virt_pages += thread->virtual_page_count();
 				meminfo.phys_pages += thread->physical_page_count();
@@ -680,14 +679,14 @@ namespace Kernel
 		}
 		{
 			RWLockRDGuard _(m_memory_region_lock);
-			for (auto& region : m_mapped_regions)
+			for (const auto& region : m_mapped_regions)
 			{
 				meminfo.virt_pages += region->virtual_page_count();
 				meminfo.phys_pages += region->physical_page_count();
 			}
 		}
 
-		size_t bytes = BAN::Math::min<size_t>(sizeof(proc_meminfo_t) - offset, buffer.size());
+		const size_t bytes = BAN::Math::min<size_t>(sizeof(proc_meminfo_t) - offset, buffer.size());
 		memcpy(buffer.data(), (uint8_t*)&meminfo + offset, bytes);
 		return bytes;
 	}
@@ -733,8 +732,8 @@ namespace Kernel
 		uint64_t user_ns { 0 }, system_ns { 0 };
 
 		{
-			LockGuard _(m_process_lock);
-			for (auto* thread : m_threads)
+			SpinLockGuard _(m_signal_lock);
+			for (const auto* thread : m_threads)
 			{
 				uint64_t u, s;
 				thread->cpu_time_ns(u, s);
@@ -1231,7 +1230,9 @@ namespace Kernel
 		if (user_stat_loc != nullptr)
 			TRY(write_to_user(user_stat_loc, &child_status, sizeof(int)));
 
-		remove_pending_signal(SIGCHLD);
+		SpinLockGuard _(m_signal_lock);
+		remove_pending_signal_no_lock(SIGCHLD);
+
 		return child_pid;
 	}
 
@@ -1389,7 +1390,8 @@ namespace Kernel
 			if (current_ns < process->m_alarm_wake_time_ns)
 				break;
 
-			process->add_pending_signal(SIGALRM, {
+			process->m_signal_lock.lock();
+			process->add_pending_signal_no_lock(SIGALRM, {
 				.si_signo = SIGALRM,
 				.si_code = SI_TIMER,
 				.si_errno = 0,
@@ -1400,9 +1402,7 @@ namespace Kernel
 				.si_band = 0,
 				.si_value = {},
 			});
-
-			ASSERT(!process->m_threads.empty());
-			Processor::scheduler().unblock_thread(process->m_threads.front());
+			process->m_signal_lock.unlock(InterruptState::Disabled);
 
 			s_alarm_processes.remove(s_alarm_processes.begin());
 
@@ -2092,14 +2092,12 @@ namespace Kernel
 		TRY(init_fd_set(arguments.writefds, &wfds));
 		TRY(init_fd_set(arguments.errorfds, &efds));
 
-		const auto old_sigmask = Thread::current().m_signal_block_mask;
 		if (arguments.sigmask)
 		{
 			sigset_t sigmask;
 			TRY(read_from_user(user_arguments->sigmask, &sigmask, sizeof(sigset_t)));
-			Thread::current().m_signal_block_mask = sigmask;
+			Thread::current().set_syscall_signal_mask(sigmask);
 		}
-		BAN::ScopeGuard sigmask_restore([old_sigmask] { Thread::current().m_signal_block_mask = old_sigmask; });
 
 		uint64_t waketime_ns = BAN::numeric_limits<uint64_t>::max();
 		if (arguments.timeout)
@@ -2204,14 +2202,12 @@ namespace Kernel
 		MemoryPinner pinner(*this);
 		TRY(validate_and_pin_pointer_access(fds, nfds * sizeof(pollfd), true, pinner));
 
-		const auto old_sigmask = Thread::current().m_signal_block_mask;
 		if (user_sigmask != nullptr)
 		{
 			sigset_t sigmask;
 			TRY(read_from_user(user_sigmask, &sigmask, sizeof(sigmask)));
-			Thread::current().m_signal_block_mask = sigmask;
+			Thread::current().set_syscall_signal_mask(sigmask);
 		}
-		BAN::ScopeGuard sigmask_restore([old_sigmask] { Thread::current().m_signal_block_mask = old_sigmask; });
 
 		uint64_t waketime_ns = BAN::numeric_limits<uint64_t>::max();
 		if (user_timeout != nullptr)
@@ -2390,14 +2386,12 @@ namespace Kernel
 		MemoryPinner pinner(*this);
 		TRY(validate_and_pin_pointer_access(events, maxevents * sizeof(epoll_event), true, pinner));
 
-		const auto old_sigmask = Thread::current().m_signal_block_mask;
 		if (user_sigmask)
 		{
 			sigset_t sigmask;
 			TRY(read_from_user(user_sigmask, &sigmask, sizeof(sigset_t)));
-			Thread::current().m_signal_block_mask = sigmask;
+			Thread::current().set_syscall_signal_mask(sigmask);
 		}
-		BAN::ScopeGuard sigmask_restore([old_sigmask] { Thread::current().m_signal_block_mask = old_sigmask; });
 
 		return TRY(static_cast<Epoll*>(epoll_inode.ptr())->wait(BAN::Span<epoll_event>(events, maxevents), waketime_ns));
 	}
@@ -3078,10 +3072,13 @@ namespace Kernel
 				break;
 			case CLOCK_PROCESS_CPUTIME_ID:
 			{
-				LockGuard _(m_process_lock);
-				uint64_t cpu_time_ns { 0 };
-				for (auto* thread : m_threads)
-					cpu_time_ns += thread->cpu_time_total_ns();
+				const uint64_t cpu_time_ns = ({
+					uint64_t cpu_time_ns { 0 };
+					SpinLockGuard _(m_signal_lock);
+					for (const auto* thread : m_threads)
+						cpu_time_ns += thread->cpu_time_total_ns();
+					cpu_time_ns;
+				});
 				tp = {
 					.tv_sec = static_cast<time_t>(cpu_time_ns / 1'000'000'000),
 					.tv_nsec = static_cast<long>(cpu_time_ns % 1'000'000'000),
@@ -3134,68 +3131,44 @@ namespace Kernel
 			m_stop_blocker.unblock();
 		}
 
-		Process* parent = nullptr;
+		with_process(m_parent, [&](Process& parent) {
+			SpinLockGuard _(parent.m_signal_lock);
 
-		for_each_process(
-			[&parent, this](Process& process) -> BAN::Iteration
+			const auto& sigchld_handler = parent.m_signal_handlers[SIGCHLD];
+
+			if (!(sigchld_handler.sa_flags & SA_NOCLDWAIT) && sigchld_handler.sa_handler != SIG_IGN)
 			{
-				if (process.pid() != m_parent)
-					return BAN::Iteration::Continue;
-				parent = &process;
-				return BAN::Iteration::Break;
-			}
-		);
+				SpinLockGuard _(parent.m_child_wait_lock);
+				for (auto& wait_status : parent.m_child_wait_statuses)
+				{
+					if (wait_status.pid != pid())
+						continue;
 
-		if (parent == nullptr)
-			return;
-
-		bool notify_parent = true;
-		bool send_sigchld = true;
-
-		{
-			SpinLockGuard _(parent->m_signal_lock);
-			if (parent->m_signal_handlers[SIGCHLD].sa_flags & SA_NOCLDWAIT)
-				notify_parent = false;
-			if (parent->m_signal_handlers[SIGCHLD].sa_handler == SIG_IGN)
-				notify_parent = false;
-			if (parent->m_signal_handlers[SIGCHLD].sa_flags & SA_NOCLDSTOP)
-				send_sigchld = false;
-		}
-
-		if (notify_parent)
-		{
-			SpinLockGuard _(parent->m_child_wait_lock);
-			for (auto& child : parent->m_child_wait_statuses)
-			{
-				if (child.pid != pid())
-					continue;
-				if (child.status.has_value() && !WIFCONTINUED(*child.status) && !WIFSTOPPED(*child.status))
+					if (wait_status.status.has_value() && !WIFCONTINUED(*wait_status.status) && !WIFSTOPPED(*wait_status.status))
+						break;
+					wait_status.status = stopped
+						? __WGENSTOPCODE(signal)
+						: __WGENCONTCODE();
+					parent.m_child_wait_blocker.unblock();
 					break;
-				child.status = stopped
-					? __WGENSTOPCODE(signal)
-					: __WGENCONTCODE();
-				parent->m_child_wait_blocker.unblock();
-				break;
+				}
 			}
-		}
 
-		if (send_sigchld)
-		{
-			parent->add_pending_signal(SIGCHLD, {
-				.si_signo = SIGCHLD,
-				.si_code = stopped ? CLD_STOPPED : CLD_CONTINUED,
-				.si_errno = 0,
-				.si_pid = pid(),
-				.si_uid = m_credentials.ruid(),
-				.si_addr = nullptr,
-				.si_status = __WGENEXITCODE(0, signal),
-				.si_band = 0,
-				.si_value = { .sival_int = 0 },
-			});
-
-			if (!parent->m_threads.empty())
-				Processor::scheduler().unblock_thread(parent->m_threads.front());
-		}
+			if (!(sigchld_handler.sa_flags & SA_NOCLDSTOP))
+			{
+				parent.add_pending_signal_no_lock(SIGCHLD, {
+					.si_signo = SIGCHLD,
+					.si_code = stopped ? CLD_STOPPED : CLD_CONTINUED,
+					.si_errno = 0,
+					.si_pid = pid(),
+					.si_uid = m_credentials.ruid(),
+					.si_addr = nullptr,
+					.si_status = __WGENEXITCODE(0, signal),
+					.si_band = 0,
+					.si_value = { .sival_int = 0 },
+				});
+			}
+		});
 	}
 
 	void Process::wait_while_stopped()
@@ -3205,8 +3178,8 @@ namespace Kernel
 
 		for (;;)
 		{
-			while (Thread::current().will_exit_because_of_signal())
-				Thread::current().handle_signal_if_interrupted();
+			while (Thread::current().handle_signal_if_interrupted())
+				continue;
 
 			SpinLockGuard guard(m_signal_lock);
 			if (!m_stopped)
@@ -3217,6 +3190,38 @@ namespace Kernel
 		}
 	}
 
+	void Process::add_pending_signal_no_lock(int signal, const siginfo_t& info)
+	{
+		ASSERT(signal >= _SIGMIN && signal <= _SIGMAX);
+		ASSERT(m_signal_lock.current_processor_has_lock());
+
+		const auto handler = m_signal_handlers[signal].sa_handler;
+		if (handler == SIG_IGN)
+			return;
+		if (handler == SIG_DFL && Thread::is_default_ignored_signal(signal))
+			return;
+
+		m_signal_pending_mask |= 1ull << signal;
+		m_signal_infos[signal] = info;
+
+		for (auto* thread : m_threads)
+		{
+			if (thread->m_signal_block_mask & (1ull << signal))
+				continue;
+			// FIXME: race condition
+			Processor::scheduler().unblock_thread(thread);
+			break;
+		}
+	}
+
+	void Process::remove_pending_signal_no_lock(int signal)
+	{
+		ASSERT(signal >= _SIGMIN && signal <= _SIGMAX);
+		ASSERT(m_signal_lock.current_processor_has_lock());
+
+		m_signal_pending_mask &= ~(1ull << signal);
+	}
+
 	BAN::ErrorOr<void> Process::kill(pid_t pid, int signal, const siginfo_t& signal_info)
 	{
 		if (pid == 0 || pid == -1)
@@ -3225,31 +3230,27 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 
 		bool found = false;
-		for_each_process(
-			[&](Process& process)
+		for_each_process([&](Process& process) {
+			if (pid != process.pid() && -pid != process.pgrp())
+				return BAN::Iteration::Continue;
+
+			found = true;
+
+			if (signal == 0)
+				return BAN::Iteration::Break;
+
+			// NOTE: stopped signals go through thread's signal handling code
+			//       because for example SIGTSTP can be ignored
+			if (Thread::is_continuing_signal(signal))
+				process.set_stopped(false, signal);
+			else
 			{
-				if (pid != process.pid() && -pid != process.pgrp())
-					return BAN::Iteration::Continue;
-
-				found = true;
-
-				if (signal == 0)
-					;
-				// NOTE: stopped signals go through thread's signal handling code
-				//       because for example SIGTSTP can be ignored
-				else if (Thread::is_continuing_signal(signal))
-					process.set_stopped(false, signal);
-				else
-				{
-					process.add_pending_signal(signal, signal_info);
-					if (!process.m_threads.empty())
-						Processor::scheduler().unblock_thread(process.m_threads.front());
-					process.m_stop_blocker.unblock();
-				}
-
-				return (pid > 0) ? BAN::Iteration::Break : BAN::Iteration::Continue;
+				SpinLockGuard _(process.m_signal_lock);
+				process.add_pending_signal_no_lock(signal, signal_info);
 			}
-		);
+
+			return (pid > 0) ? BAN::Iteration::Break : BAN::Iteration::Continue;
+		});
 
 		if (found)
 			return {};
@@ -3285,9 +3286,10 @@ namespace Kernel
 				set_stopped(false, signal);
 			else
 			{
-				add_pending_signal(signal, signal_info);
-				m_stop_blocker.unblock();
+				SpinLockGuard _(m_signal_lock);
+				add_pending_signal_no_lock(signal, signal_info);
 			}
+
 			return 0;
 		}
 
@@ -3319,13 +3321,11 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_sigpending(sigset_t* user_sigset)
 	{
-		sigset_t sigset;
-
-		{
+		const sigset_t sigset = ({
 			auto& thread = Thread::current();
-			SpinLockGuard _(thread.m_signal_lock);
-			sigset = (signal_pending_mask() | thread.m_signal_pending_mask) & thread.m_signal_block_mask;
-		}
+			SpinLockGuard _(m_signal_lock);
+			(m_signal_pending_mask | thread.m_signal_pending_mask) & thread.m_signal_block_mask;
+		});
 
 		TRY(write_to_user(user_sigset, &sigset, sizeof(sigset_t)));
 		return 0;
@@ -3333,37 +3333,42 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_sigprocmask(int how, const sigset_t* user_set, sigset_t* user_oset)
 	{
-		LockGuard _(m_process_lock);
-
-		auto& thread = Thread::current();
-
-		const sigset_t old_sigset = thread.m_signal_block_mask;
+		sigset_t sigmask, old_sigmask;
 
 		if (user_set != nullptr)
 		{
-			sigset_t mask;
-			TRY(read_from_user(user_set, &mask, sizeof(sigset_t)));
-			mask &= ~((1ull << SIGKILL) | (1ull << SIGSTOP));
+			TRY(read_from_user(user_set, &sigmask, sizeof(sigset_t)));
+			sigmask &= ~((1ull << SIGKILL) | (1ull << SIGSTOP));
+		}
 
-			SpinLockGuard _(thread.m_signal_lock);
-			switch (how)
+		{
+			auto& thread = Thread::current();
+
+			SpinLockGuard _(m_signal_lock);
+
+			old_sigmask = thread.m_signal_block_mask;
+
+			if (user_set != nullptr)
 			{
-				case SIG_BLOCK:
-					thread.m_signal_block_mask |= mask;
-					break;
-				case SIG_UNBLOCK:
-					thread.m_signal_block_mask &= ~mask;
-					break;
-				case SIG_SETMASK:
-					thread.m_signal_block_mask = mask;
-					break;
-				default:
-					return BAN::Error::from_errno(EINVAL);
+				switch (how)
+				{
+					case SIG_BLOCK:
+						thread.m_signal_block_mask |=  sigmask;
+						break;
+					case SIG_UNBLOCK:
+						thread.m_signal_block_mask &= ~sigmask;
+						break;
+					case SIG_SETMASK:
+						thread.m_signal_block_mask  =  sigmask;
+						break;
+					default:
+						return BAN::Error::from_errno(EINVAL);
+				}
 			}
 		}
 
 		if (user_oset != nullptr)
-			TRY(write_to_user(user_oset, &old_sigset, sizeof(sigset_t)));
+			TRY(write_to_user(user_oset, &old_sigmask, sizeof(sigset_t)));
 
 		return 0;
 	}
@@ -3373,24 +3378,20 @@ namespace Kernel
 		sigset_t set;
 		TRY(read_from_user(user_set, &set, sizeof(sigset_t)));
 
-		LockGuard _(m_process_lock);
-
 		auto& thread = Thread::current();
-		thread.set_suspend_signal_mask(set & ~((1ull << SIGKILL) | (1ull << SIGSTOP)));
+		thread.set_syscall_signal_mask(set);
 
-		// FIXME: i *think* here is a race condition as kill doesnt hold process lock
+		// FIXME: properly wakeup threads on signals
 		while (!thread.is_interrupted_by_signal())
-			Processor::scheduler().block_current_thread(nullptr, -1, &m_process_lock);
+			SystemTimer::get().sleep_for_ms(100);
 
 		return BAN::Error::from_errno(EINTR);
 	}
 
 	BAN::ErrorOr<long> Process::sys_sigwait(const sigset_t* user_set, int* user_signal)
 	{
-		sigset_t set;
-		TRY(read_from_user(user_set, &set, sizeof(sigset_t)));
-
-		LockGuard _(m_process_lock);
+		sigset_t sigmask;
+		TRY(read_from_user(user_set, &sigmask, sizeof(sigset_t)));
 
 		auto& thread = Thread::current();
 		for (;;)
@@ -3398,11 +3399,10 @@ namespace Kernel
 			BAN::Optional<int> signal;
 
 			{
-				SpinLockGuard _1(thread.m_signal_lock);
-				SpinLockGuard _2(m_signal_lock);
+				SpinLockGuard _(m_signal_lock);
 
-				const uint64_t pending = thread.m_signal_pending_mask | this->m_signal_pending_mask;
-				if (const auto wait_mask = pending & set)
+				const uint64_t pending_mask = thread.m_signal_pending_mask | this->m_signal_pending_mask;
+				if (const auto wait_mask = pending_mask & sigmask)
 				{
 					for (size_t i = _SIGMIN; i <= _SIGMAX; i++)
 					{
@@ -3410,7 +3410,7 @@ namespace Kernel
 						if (!(wait_mask & mask))
 							continue;
 						thread.m_signal_pending_mask &= ~mask;
-						this->m_signal_pending_mask &= ~mask;
+						this->m_signal_pending_mask  &= ~mask;
 						signal = i;
 						break;
 					}
@@ -3425,8 +3425,8 @@ namespace Kernel
 				return 0;
 			}
 
-			// FIXME: i *think* here is a race condition as kill doesnt hold process lock
-			Processor::scheduler().block_current_thread(nullptr, -1, &m_process_lock);
+			// FIXME: properly wakeup threads on signals
+			SystemTimer::get().sleep_for_ms(100);
 		}
 	}
 
@@ -3627,12 +3627,13 @@ namespace Kernel
 		));
 		thread->m_signal_block_mask = Thread::current().m_signal_block_mask;
 
-		LockGuard _(m_process_lock);
-
-		if (auto ret = m_threads.push_back(thread); ret.is_error())
 		{
-			delete thread;
-			return ret.release_error();
+			SpinLockGuard _(m_signal_lock);
+			if (auto ret = m_threads.push_back(thread); ret.is_error())
+			{
+				delete thread;
+				return ret.release_error();
+			}
 		}
 
 		Processor::scheduler().add_thread(thread);
@@ -3642,19 +3643,22 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_thread_exit(void* value)
 	{
+		const auto state = m_signal_lock.lock();
+
+		if (m_threads.size() == 1)
 		{
-			LockGuard _(m_process_lock);
-
-			if (m_threads.size() == 1)
-				return sys_exit(0);
-
-			auto& thread = Thread::current();
-			if (!thread.is_detached())
-			{
-				TRY(m_exited_threads.emplace_back(thread.tid(), value));
-				m_thread_exit_blocker.unblock();
-			}
+			m_signal_lock.unlock(state);
+			return sys_exit(0);
 		}
+
+		auto& thread = Thread::current();
+		if (!thread.is_detached())
+		{
+			TRY(m_exited_threads.emplace_back(thread.tid(), value));
+			m_thread_exit_blocker.unblock();
+		}
+
+		m_signal_lock.unlock(state);
 
 		Thread::current().on_exit();
 
@@ -3663,53 +3667,48 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_thread_join(pid_t tid, void** user_value)
 	{
-		LockGuard _(m_process_lock);
-
 		if (tid == Thread::current().tid())
 			return BAN::Error::from_errno(EINVAL);
 
-		const auto check_thread =
-			[&]() -> BAN::Optional<void*>
+		const auto get_thread_exit_value = [&]() -> BAN::Optional<void*> {
+			for (size_t i = 0; i < m_exited_threads.size(); i++)
 			{
-				for (size_t i = 0; i < m_exited_threads.size(); i++)
-				{
-					if (m_exited_threads[i].tid != tid)
-						continue;
-					void* ret = m_exited_threads[i].value;
-					m_exited_threads.remove(i);
-					return ret;
-				}
+				if (m_exited_threads[i].tid != tid)
+					continue;
+				void* ret = m_exited_threads[i].value;
+				m_exited_threads.remove(i);
+				return ret;
+			}
+			return {};
+		};
 
+		const auto validate_thread = [&]() -> BAN::ErrorOr<void> {
+			for (const auto* thread : m_threads)
+			{
+				if (thread->tid() != tid)
+					continue;
+				if (thread->is_detached())
+					return BAN::Error::from_errno(EINVAL);
 				return {};
-			};
+			}
+			return BAN::Error::from_errno(ESRCH);
+		};
 
+		const auto state = m_signal_lock.lock();
 		for (;;)
 		{
-			if (auto ret = check_thread(); ret.has_value())
+			if (auto ret = get_thread_exit_value(); ret.has_value())
 			{
+				m_signal_lock.unlock(state);
 				if (user_value != nullptr)
 					TRY(write_to_user(user_value, &ret.value(), sizeof(void*)));
 				return 0;
 			}
 
-			{
-				bool found = false;
-				bool joinable = false;
-				for (auto* thread : m_threads)
-				{
-					if (thread->tid() != tid)
-						continue;
-					found = true;
-					joinable = !thread->is_detached();
-					break;
-				}
-				if (!found)
-					return BAN::Error::from_errno(ESRCH);
-				if (!joinable)
-					return BAN::Error::from_errno(EINVAL);
-			}
+			TRY(validate_thread());
 
-			TRY(Thread::current().block_or_eintr_indefinite(m_thread_exit_blocker, &m_process_lock));
+			BlockableSpinLock block(m_signal_lock);
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_exit_blocker, &block));
 		}
 	}
 
@@ -3723,14 +3722,16 @@ namespace Kernel
 		if (signal != 0 && (signal < _SIGMIN || signal > _SIGMAX))
 			return BAN::Error::from_errno(EINVAL);
 
-		LockGuard _(m_process_lock);
+		SpinLockGuard _(m_signal_lock);
 
 		for (auto* thread : m_threads)
 		{
 			if (thread->tid() != tid)
 				continue;
+
 			if (signal == 0)
 				return 0;
+
 			thread->add_signal(signal, {
 				.si_signo = signal,
 				.si_code = SI_USER,
@@ -3742,6 +3743,7 @@ namespace Kernel
 				.si_band = 0,
 				.si_value = {},
 			});
+
 			return 0;
 		}
 
@@ -3750,7 +3752,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_thread_detach(pid_t tid)
 	{
-		LockGuard _(m_process_lock);
+		SpinLockGuard _(m_signal_lock);
 
 		for (auto* thread : m_threads)
 		{

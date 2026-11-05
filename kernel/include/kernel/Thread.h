@@ -62,14 +62,14 @@ namespace Kernel
 		bool handle_signal_if_interrupted();
 		bool handle_signal(int signal, const siginfo_t&);
 		void add_signal(int signal, const siginfo_t&);
-		void set_suspend_signal_mask(uint64_t sigmask);
+		void set_syscall_signal_mask(uint64_t sigmask);
 
 		static bool is_stopping_signal(int signal);
 		static bool is_continuing_signal(int signal);
 		static bool is_terminating_signal(int signal);
 		static bool is_abnormal_terminating_signal(int signal);
 		static bool is_realtime_signal(int signal);
-		bool will_exit_because_of_signal() const;
+		static bool is_default_ignored_signal(int signal);
 
 		BAN::ErrorOr<void> sigaltstack(const stack_t* ss, stack_t* oss);
 
@@ -193,8 +193,7 @@ namespace Kernel
 		siginfo_t                  m_signal_infos[_SIGMAX + 1] { };
 		uint64_t                   m_signal_pending_mask  { 0 };
 		uint64_t                   m_signal_block_mask    { 0 };
-		BAN::Optional<uint64_t>    m_signal_suspend_mask;
-		SpinLock                   m_signal_lock;
+		BAN::Optional<uint64_t>    m_signal_restore_mask;
 		stack_t                    m_signal_alt_stack     { nullptr, 0, SS_DISABLE };
 		static_assert(_SIGMAX < 64);
 
