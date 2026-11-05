@@ -372,7 +372,25 @@ namespace Kernel
 			inode = m_open_files[fd]->file.inode;
 		}
 
-		return inode->ioctl(request, arg);
+		if (auto ret = inode->ioctl(request, arg); !ret.is_error() || ret.error().get_error_code() != ENOTSUP)
+			return ret;
+
+		switch (request)
+		{
+			case TIOCGWINSZ:
+			case TIOCSWINSZ:
+			case TCGETS:
+			case TCSETS:
+			case TCSETSW:
+			case TCSETSF:
+			case TIOCGPGRP:
+			case TIOCSPGRP:
+				if (!inode->is_tty())
+					return BAN::Error::from_errno(ENOTTY);
+				break;
+		}
+
+		return BAN::Error::from_errno(ENOTSUP);
 	}
 
 	BAN::ErrorOr<off_t> OpenFileDescriptorSet::seek(int fd, off_t offset, int whence)
