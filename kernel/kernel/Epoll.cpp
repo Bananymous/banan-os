@@ -116,9 +116,6 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> Epoll::wait(BAN::Span<epoll_event> event_span, uint64_t waketime_ns)
 	{
-		if (event_span.empty())
-			return BAN::Error::from_errno(EINVAL);
-
 		size_t event_count = 0;
 
 		for (;;)

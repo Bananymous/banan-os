@@ -2149,6 +2149,8 @@ namespace Kernel
 			}
 		}
 
+		size_t fd_count = 0;
+
 		auto epoll = TRY(Epoll::create());
 		for (int fd = 0; fd < arguments.nfds; fd++)
 		{
@@ -2164,10 +2166,15 @@ namespace Kernel
 
 			auto inode = TRY(m_open_file_descriptors.inode_of(fd));
 			TRY(epoll->ctl(EPOLL_CTL_ADD, fd, inode, { .events = events, .data = { .fd = fd }}));
+
+			fd_count++;
 		}
 
+		if (fd_count == 0)
+			fd_count++;
+
 		BAN::Vector<epoll_event> event_buffer;
-		TRY(event_buffer.resize(arguments.nfds));
+		TRY(event_buffer.resize(fd_count));
 
 		const size_t waited_events = TRY(epoll->wait(event_buffer.span(), waketime_ns));
 
@@ -2257,7 +2264,7 @@ namespace Kernel
 		uint32_t events_per_fd[OPEN_MAX] {};
 		for (nfds_t i = 0; i < nfds; i++)
 			if (fds[i].fd >= 0 && fds[i].fd < OPEN_MAX)
-				events_per_fd[fds[i].fd] |= fds[i].events;
+				events_per_fd[fds[i].fd] |= fds[i].events | POLLHUP | POLLERR;
 
 		size_t fd_count = 0;
 
@@ -2283,6 +2290,9 @@ namespace Kernel
 
 			fd_count++;
 		}
+
+		if (fd_count == 0)
+			fd_count = 1;
 
 		BAN::Vector<epoll_event> event_buffer;
 		TRY(event_buffer.resize(fd_count));
