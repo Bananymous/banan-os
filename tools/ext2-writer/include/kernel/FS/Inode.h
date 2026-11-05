@@ -8,6 +8,7 @@
 #include <kernel/Lock/Mutex.h>
 
 #include <dirent.h>
+#include <sys/types.h>
 
 namespace Kernel
 {
