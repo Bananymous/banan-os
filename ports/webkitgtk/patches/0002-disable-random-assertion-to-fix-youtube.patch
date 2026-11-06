@@ -1,0 +1,16 @@
+diff -ruN webkitgtk-2.54.2/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/FrameRenderer.h webkitgtk-2.54.2-banan_os/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/FrameRenderer.h
+--- webkitgtk-2.54.2/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/FrameRenderer.h	2026-07-24 11:02:56.198356000 +0300
++++ webkitgtk-2.54.2-banan_os/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/FrameRenderer.h	2026-11-06 06:49:36.980856151 +0200
+@@ -60,9 +60,9 @@
+     virtual bool ensureDrawing() = 0;
+     virtual void fillGLInformation(RenderProcessInfo&&, CompletionHandler<void(RenderProcessInfo&&)>&&) = 0;
+ 
+-    virtual WebCore::GraphicsLayerFactory* graphicsLayerFactory() { RELEASE_ASSERT_NOT_REACHED(); }
+-    virtual void setRootCompositingLayer(WebCore::GraphicsLayer*) { RELEASE_ASSERT_NOT_REACHED(); }
+-    virtual void setViewOverlayRootLayer(WebCore::GraphicsLayer*) { RELEASE_ASSERT_NOT_REACHED(); }
++    virtual WebCore::GraphicsLayerFactory* graphicsLayerFactory() { return nullptr; }
++    virtual void setRootCompositingLayer(WebCore::GraphicsLayer*) { }
++    virtual void setViewOverlayRootLayer(WebCore::GraphicsLayer*) { }
+ 
+ #if PLATFORM(WPE) && ENABLE(WPE_PLATFORM) && (USE(GBM) || OS(ANDROID))
+     virtual void preferredBufferFormatsDidChange() { }
