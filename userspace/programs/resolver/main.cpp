@@ -254,6 +254,7 @@ BAN::Optional<DNSResponse> read_dns_response(int socket)
 	auto response_span = BAN::ConstByteSpan { response_storage, static_cast<size_t>(nrecv) };
 
 	const auto& response = response_span.as<const DNSPacket>();
+	response_span = response_span.slice(sizeof(DNSPacket));
 
 	DNSResponse result {};
 	result.id = response.identification;
@@ -262,14 +263,6 @@ BAN::Optional<DNSResponse> read_dns_response(int socket)
 	{
 		dprintln("DNS error (rcode {})", static_cast<unsigned>(response.flags & 0xF));
 		return result;
-	}
-
-	response_span = response_span.slice(sizeof(DNSPacket));
-	for (size_t i = 0; i < response.question_count; i++)
-	{
-		while (response_span[0])
-			response_span = response_span.slice(response_span[0] + 1);
-		response_span = response_span.slice(1 + 4);
 	}
 
 	const auto read_name = [&](BAN::ConstByteSpan& out_span) -> BAN::String {
@@ -304,8 +297,16 @@ BAN::Optional<DNSResponse> read_dns_response(int socket)
 			}
 		}
 
+		*span = span->slice(1);
+
 		return result;
 	};
+
+	for (size_t i = 0; i < response.question_count; i++)
+	{
+		(void)read_name(response_span);
+		response_span = response_span.slice(4);
+	}
 
 	for (size_t i = 0; i < response.answer_count; i++)
 	{
