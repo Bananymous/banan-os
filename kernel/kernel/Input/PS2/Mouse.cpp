@@ -146,7 +146,7 @@ namespace Kernel::Input
 		{
 			MouseEvent event;
 			event.type = MouseEventType::MouseScrollEvent;
-			event.scroll_event.scroll = rel_z;
+			event.scroll_event.scroll = -rel_z;
 			add_event(BAN::ConstByteSpan::from(event));
 		}
 	}
