@@ -42,8 +42,8 @@ build_toolchain () {
 
 build_tools() {
 	pushd "$BANAN_TOOLS_DIR/ext2-writer" >/dev/null || exit 1
-	[ -d build ] || cmake -B build -S .             || exit 1
-	cmake --build build --parallel                  || exit 1
+	[ -d build ] || "$BANAN_CMAKE" -B build -S .    || exit 1
+	"$BANAN_CMAKE" --build build --parallel         || exit 1
 	popd >/dev/null                                 || exit 1
 }
 
