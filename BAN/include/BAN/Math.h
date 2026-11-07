@@ -10,12 +10,6 @@
 namespace BAN::Math
 {
 
-#if defined(__clang__) // just to make clangd happy
-template<unsigned_integral T> extern int __builtin_clzg(T);
-template<unsigned_integral T> extern int __builtin_ctzg(T);
-template<unsigned_integral T> extern int __builtin_popcountg(T);
-#endif
-
 	template<typename T>
 	inline constexpr T abs(T x)
 	{
@@ -91,19 +85,34 @@ template<unsigned_integral T> extern int __builtin_popcountg(T);
 	template<unsigned_integral T>
 	inline constexpr int clz(T x)
 	{
-		return __builtin_clzg(x);
+		if constexpr (sizeof(T) <= sizeof(unsigned))
+			return __builtin_clz(x);
+		if constexpr (sizeof(T) <= sizeof(unsigned long))
+			return __builtin_clzl(x);
+		if constexpr (sizeof(T) <= sizeof(unsigned long long))
+			return __builtin_clzll(x);
 	}
 
 	template<unsigned_integral T>
 	inline constexpr int ctz(T x)
 	{
-		return __builtin_ctzg(x);
+		if constexpr (sizeof(T) <= sizeof(unsigned))
+			return __builtin_ctz(x);
+		if constexpr (sizeof(T) <= sizeof(unsigned long))
+			return __builtin_ctzl(x);
+		if constexpr (sizeof(T) <= sizeof(unsigned long long))
+			return __builtin_ctzll(x);
 	}
 
 	template<unsigned_integral T>
 	inline constexpr int popcount(T x)
 	{
-		return __builtin_popcountg(x);
+		if constexpr (sizeof(T) <= sizeof(unsigned))
+			return __builtin_popcount(x);
+		if constexpr (sizeof(T) <= sizeof(unsigned long))
+			return __builtin_popcountl(x);
+		if constexpr (sizeof(T) <= sizeof(unsigned long long))
+			return __builtin_popcountll(x);
 	}
 
 	template<integral T>
@@ -366,7 +375,9 @@ template<unsigned_integral T> extern int __builtin_popcountg(T);
 	template<floating_point T>
 	inline constexpr T cbrt(T value)
 	{
-		return pow<T>(value, (T)1.0 / (T)3.0);
+		return (value >= 0)
+			?  pow<T>( value, (T)1.0 / (T)3.0)
+			: -pow<T>(-value, (T)1.0 / (T)3.0);
 	}
 
 	template<floating_point T>
