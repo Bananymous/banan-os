@@ -82,10 +82,10 @@ Each major component and library has its own subdirectory (kernel, userspace, li
 ### Needed packages
 
 #### apt (tested on ubuntu 22.04)
-```# apt install build-essential git ninja-build texinfo bison flex libgmp-dev libmpfr-dev libmpc-dev parted qemu-system-x86 cpu-checker```
+```# apt install build-essential git texinfo bison flex libgmp-dev libmpfr-dev libmpc-dev parted qemu-system-x86 cpu-checker```
 
 #### pacman
-```# pacman -S --needed base-devel git wget cmake ninja parted qemu-system-x86```
+```# pacman -S --needed base-devel git wget cmake parted qemu-system-x86```
 
 
 ### Compilation

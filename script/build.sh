@@ -2,79 +2,78 @@
 set -e
 
 export BANAN_SCRIPT_DIR=$(dirname $(realpath $0))
-source $BANAN_SCRIPT_DIR/config.sh
+source "$BANAN_SCRIPT_DIR/config.sh"
 
 run_fakeroot() {
 	touch "$BANAN_FAKEROOT"
 	fakeroot -i "$BANAN_FAKEROOT" -s "$BANAN_FAKEROOT" -- "$@"
 }
 
-make_build_dir () {
-	mkdir -p $BANAN_BUILD_DIR
-	cd $BANAN_BUILD_DIR
-	if ! [[ -f "build.ninja" ]]; then
-		$BANAN_CMAKE --toolchain=$BANAN_TOOLCHAIN_DIR/Toolchain.txt -G Ninja $BANAN_ROOT_DIR
-	fi
-}
-
 build_target () {
-	if ! [[ -f $BANAN_CMAKE ]]; then
+	if [ ! -f "$BANAN_CMAKE" ]; then
 		echo "cmake not found, please re-run toolchain compilation script"
 		exit 1
 	fi
 
-	if ! type ninja &> /dev/null ; then
-		echo "ninja not found" >&2
-		exit 1
-	fi
-
-	make_build_dir
-	if [[ $# -eq 0 ]]; then
+	if [ $# -eq 0 ]; then
 		echo "No target provided"
 		exit 1
 	fi
-	run_fakeroot $BANAN_CMAKE --build $BANAN_BUILD_DIR -- -j$(nproc) "$1"
+
+	cd "$BANAN_ROOT_DIR"
+
+	if [ ! -d "$BANAN_BUILD_DIR/CMakeFiles" ]; then
+		"$BANAN_CMAKE" --toolchain="$BANAN_TOOLCHAIN_DIR/Toolchain.txt" -B "$BANAN_BUILD_DIR"
+	fi
+
+	if [ "$1" != 'install' ]; then
+		"$BANAN_CMAKE" --build "$BANAN_BUILD_DIR" --parallel --target "$1"
+	else
+		run_fakeroot "$BANAN_CMAKE" --install "$BANAN_BUILD_DIR"
+	fi
 }
 
 build_toolchain () {
-	$BANAN_TOOLCHAIN_DIR/build.sh
+	"$BANAN_TOOLCHAIN_DIR/build.sh"
 }
 
 build_tools() {
-	pushd "$BANAN_TOOLS_DIR/ext2-writer" >/dev/null || exit 1
-	[ -d build ] || "$BANAN_CMAKE" -B build -S .    || exit 1
-	"$BANAN_CMAKE" --build build --parallel         || exit 1
-	popd >/dev/null                                 || exit 1
+	pushd "$BANAN_TOOLS_DIR/ext2-writer" &>/dev/null
+	if [ ! -d 'build' ]; then
+		"$BANAN_CMAKE" -B build || exit 1
+	fi
+	"$BANAN_CMAKE" --build build --parallel || exit 1
+	popd &>/dev/null
 }
 
 create_image () {
 	build_target all
 	build_target install
 	build_tools
-	$BANAN_SCRIPT_DIR/image.sh "$1"
+	"$BANAN_SCRIPT_DIR/image.sh" "$1"
 }
 
 create_iso () {
 	build_target all
 	build_target install
-	$BANAN_SCRIPT_DIR/iso.sh
+	"$BANAN_SCRIPT_DIR/iso.sh"
 }
 
 run_qemu () {
 	create_image
-	$BANAN_SCRIPT_DIR/qemu.sh $@
+	"$BANAN_SCRIPT_DIR/qemu.sh" "$@"
 }
 
 run_bochs () {
 	create_image
-	$BANAN_SCRIPT_DIR/bochs.sh $@
+	"$BANAN_SCRIPT_DIR/bochs.sh" "$@"
 }
 
-if [ ! -d $BANAN_SYSROOT ]; then
-	mkdir -p $BANAN_SYSROOT
+if [ ! -d "$BANAN_SYSROOT" ]; then
+	mkdir -p "$BANAN_SYSROOT"
 
-	pushd $BANAN_SYSROOT
-	run_fakeroot tar xf ${BANAN_ROOT_DIR}/base-sysroot.tar.gz
+	pushd "$BANAN_SYSROOT"
+	run_fakeroot tar xf "$BANAN_ROOT_DIR/base-sysroot.tar.gz"
 	popd
 fi
 
@@ -84,15 +83,19 @@ elif type kvm-ok &> /dev/null; then
 	if kvm-ok &> /dev/null; then
 		QEMU_ACCEL="-accel kvm"
 	fi
-elif [[ -c /dev/kvm ]]; then
-	if [[ -r /dev/kvm ]] && [[ -w /dev/kvm ]]; then
+elif [ -c /dev/kvm ]; then
+	if [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
 		QEMU_ACCEL="-accel kvm"
 	else
 		echo "You don't have read/write permissions for /dev/kvm" >&2
 	fi
 fi
 
-if [[ $# -eq 0 ]]; then
+if [ -z "$CMAKE_GENERATOR" ] && type ninja &>/dev/null; then
+	export CMAKE_GENERATOR='Ninja'
+fi
+
+if [ $# -eq 0 ]; then
 	echo "No argument given"
 	exit 1
 fi

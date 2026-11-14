@@ -62,7 +62,6 @@ install_grub_uefi() {
 }
 
 install_banan_legacy() {
-	installer_build_dir="$BANAN_ROOT_DIR/bootloader/installer/build/$BANAN_ARCH"
 	bootloader_elf="$BANAN_BUILD_DIR/bootloader/bios/bootloader"
 
 	if [ ! -f "$bootloader_elf" ]; then
@@ -70,17 +69,14 @@ install_banan_legacy() {
 		exit 1
 	fi
 
-	if [ ! -d "$installer_build_dir" ]; then
-		mkdir -p "$installer_build_dir"
-		cd "$installer_build_dir"
-		"$BANAN_CMAKE" -G Ninja ../..
+	cd "$BANAN_ROOT_DIR/bootloader/installer"
+	if [ ! -d 'build' ]; then
+		"$BANAN_CMAKE" -B build || exit 1
 	fi
-
-	cd "$installer_build_dir"
-	ninja
+	"$BANAN_CMAKE" --build build --parallel || exit 1
 
 	echo installing bootloader
-	"$installer_build_dir/banan_os-bootloader-installer" "$bootloader_elf" "$BANAN_DISK_IMAGE_PATH" root
+	./build/banan_os-bootloader-installer "$bootloader_elf" "$BANAN_DISK_IMAGE_PATH" root
 }
 
 install_banan_uefi() {
