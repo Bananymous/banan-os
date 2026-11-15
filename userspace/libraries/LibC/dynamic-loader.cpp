@@ -761,8 +761,24 @@ static char* find_library(const LoadedObject& object, BAN::StringView needed_nam
 		return realpath(buffer, nullptr);
 	}
 
+	const auto object_dir_len = ({
+		size_t len = 0;
+		for (size_t i = 0; object.full_path[i]; i++)
+			if (object.full_path[i] == '/')
+				len = i;
+		len;
+	});
+
 	const auto check_library = [&](BAN::StringView library_dir) -> char* {
-		char* buffer = static_cast<char*>(alloca(library_dir.size() + 1 + needed_name.size() + 1));
+		const auto origin_relative = library_dir.starts_with("$ORIGIN"_sv);
+		const auto base_len = [&] {
+			if (!origin_relative)
+				return library_dir.size();
+			library_dir = library_dir.substring("$ORIGIN"_sv.size());
+			return object_dir_len + library_dir.size();
+		}();
+
+		char* buffer = static_cast<char*>(alloca(base_len + 1 + needed_name.size() + 1));
 
 		char* ptr = buffer;
 		const auto append_buffer = [&ptr](const char* string, size_t size) {
@@ -770,6 +786,8 @@ static char* find_library(const LoadedObject& object, BAN::StringView needed_nam
 			ptr += size;
 		};
 
+		if (origin_relative)
+			append_buffer(object.full_path, object_dir_len);
 		append_buffer(library_dir.data(), library_dir.size());
 		append_buffer("/",  1);
 		append_buffer(needed_name.data(), needed_name.size());
