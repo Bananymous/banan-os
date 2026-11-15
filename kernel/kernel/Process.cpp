@@ -3694,22 +3694,21 @@ namespace Kernel
 			return BAN::Error::from_errno(ESRCH);
 		};
 
-		const auto state = m_signal_lock.lock();
-		for (;;)
-		{
-			if (auto ret = get_thread_exit_value(); ret.has_value())
+		void* result = TRY([&]() -> BAN::ErrorOr<void*> {
+			SpinLockGuard _(m_signal_lock);
+			for (;;)
 			{
-				m_signal_lock.unlock(state);
-				if (user_value != nullptr)
-					TRY(write_to_user(user_value, &ret.value(), sizeof(void*)));
-				return 0;
+				if (auto ret = get_thread_exit_value(); ret.has_value())
+					return ret.value();
+				TRY(validate_thread());
+				BlockableSpinLock block(m_signal_lock);
+				TRY(Thread::current().block_or_eintr_indefinite(m_thread_exit_blocker, &block));
 			}
+		}());
 
-			TRY(validate_thread());
-
-			BlockableSpinLock block(m_signal_lock);
-			TRY(Thread::current().block_or_eintr_indefinite(m_thread_exit_blocker, &block));
-		}
+		if (user_value != nullptr)
+			TRY(write_to_user(user_value, &result, sizeof(void*)));
+		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_thread_getid()
