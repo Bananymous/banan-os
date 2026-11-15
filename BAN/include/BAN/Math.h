@@ -362,11 +362,17 @@ namespace BAN::Math
 		if constexpr(BAN::is_same_v<T, float>)
 		{
 			using v4sf = float __attribute__((vector_size(16)));
+#ifdef __clang__
+			extern v4sf __builtin_ia32_sqrtss(v4sf);
+#endif
 			return __builtin_ia32_sqrtss((v4sf) { x, 0.0f, 0.0f, 0.0f })[0];
 		}
 		else if constexpr(BAN::is_same_v<T, double>)
 		{
 			using v2df = double __attribute__((vector_size(16)));
+#ifdef __clang__
+			extern v2df __builtin_ia32_sqrtsd(v2df);
+#endif
 			return __builtin_ia32_sqrtsd((v2df) { x, 0.0 })[0];
 		}
 		else if constexpr(BAN::is_same_v<T, long double>)
