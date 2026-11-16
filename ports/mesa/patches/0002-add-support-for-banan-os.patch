@@ -34,6 +34,15 @@ diff -ruN mesa-26.2.7/meson.build mesa-26.2.7-banan_os/meson.build
    with_dri_platform = 'pseudo-drm'
  else
    # FIXME: haiku doesn't use dri, and xlib doesn't use dri, probably should
+@@ -2012,7 +2012,7 @@
+ 
+ dep_llvm = dependency(
+   'llvm',
+-  method : host_machine.system() == 'windows' ? 'auto' : 'config-tool',
++  method : host_machine.system() == 'windows' ? 'auto' : 'cmake',
+   version : _llvm_version,
+   modules : llvm_modules,
+   optional_modules : llvm_optional_modules,
 diff -ruN mesa-26.2.7/src/glx/drisw_glx.c mesa-26.2.7-banan_os/src/glx/drisw_glx.c
 --- mesa-26.2.7/src/glx/drisw_glx.c	2026-11-11 18:03:52.000000000 +0200
 +++ mesa-26.2.7-banan_os/src/glx/drisw_glx.c	2026-11-16 22:31:22.496605406 +0200

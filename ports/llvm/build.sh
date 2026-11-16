@@ -28,18 +28,5 @@ build() {
 }
 
 install() {
-	# This port only contains llvm libraries used optionally by
-	# mesa port. There is no need to install to sysroot :D
-
-	local pkg_dir="../llvm-banan_os-$VERSION-$BANAN_ARCH"
-
-	rm -rf "$pkg_dir"
-
-	mkdir -p "$pkg_dir/include" || exit 1
-	cp -r 'llvm/include/llvm'   "$pkg_dir/include/" || exit 1
-	cp -r 'llvm/include/llvm-c' "$pkg_dir/include/" || exit 1
-	cp -r 'build/include/llvm'  "$pkg_dir/include/" || exit 1
-
-	mkdir -p "$pkg_dir/lib" || exit 1
-	cp 'build/lib/'*.a "$pkg_dir/lib/" || exit 1
+	DESTDIR="$DESTDIR" cmake --install build || exit 1
 }

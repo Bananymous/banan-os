@@ -38,7 +38,6 @@ for build_script in */build.sh; do
 	port_name="${build_script%/*}"
 
 	[[ -h "$port_name" ]] && continue
-	[[ "$port_name" == 'llvm' ]] && continue
 
 	pushd "$BANAN_PORT_DIR/$port_name" >/dev/null
 	package_standalone
