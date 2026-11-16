@@ -1,6 +1,6 @@
-diff -ruN mesa-26.1.4/include/c99_alloca.h mesa-26.1.4-banan_os/include/c99_alloca.h
---- mesa-26.1.4/include/c99_alloca.h	2026-07-01 17:16:13.000000000 +0300
-+++ mesa-26.1.4-banan_os/include/c99_alloca.h	2026-07-05 12:36:39.805616590 +0300
+diff -ruN mesa-26.2.7/include/c99_alloca.h mesa-26.2.7-banan_os/include/c99_alloca.h
+--- mesa-26.2.7/include/c99_alloca.h	2026-11-11 18:03:52.000000000 +0200
++++ mesa-26.2.7-banan_os/include/c99_alloca.h	2026-11-16 22:31:16.272372072 +0200
 @@ -35,7 +35,7 @@
  
  #  define alloca _alloca
@@ -10,14 +10,73 @@ diff -ruN mesa-26.1.4/include/c99_alloca.h mesa-26.1.4-banan_os/include/c99_allo
  
  #  include <alloca.h>
  
-diff -ruN mesa-26.1.4/include/drm-uapi/drm.h mesa-26.1.4-banan_os/include/drm-uapi/drm.h
---- mesa-26.1.4/include/drm-uapi/drm.h	2026-07-01 17:16:13.000000000 +0300
-+++ mesa-26.1.4-banan_os/include/drm-uapi/drm.h	2026-07-05 12:36:39.797829778 +0300
-@@ -47,6 +47,41 @@
+diff -ruN mesa-26.2.7/include/drm-uapi/drm.h mesa-26.2.7-banan_os/include/drm-uapi/drm.h
+--- mesa-26.2.7/include/drm-uapi/drm.h	2026-11-11 18:03:52.000000000 +0200
++++ mesa-26.2.7-banan_os/include/drm-uapi/drm.h	2026-11-16 22:31:16.268732892 +0200
+@@ -47,7 +47,7 @@
  #include <sys/types.h>
  #if defined(__GNU__)
  #include <sys/ioctl.h>
-+#elif defined(__banan_os__)
+-#else
++#elif !defined(__banan_os__)
+ #include <sys/ioccom.h>
+ #endif
+ typedef int8_t   __s8;
+diff -ruN mesa-26.2.7/meson.build mesa-26.2.7-banan_os/meson.build
+--- mesa-26.2.7/meson.build	2026-11-11 18:03:52.000000000 +0200
++++ mesa-26.2.7-banan_os/meson.build	2026-11-16 22:31:16.264496983 +0200
+@@ -423,7 +423,7 @@
+   with_dri_platform = 'windows'
+ elif system_has_kms_drm
+   with_dri_platform = 'drm'
+-elif host_machine.system() == 'gnu' or (freedreno_kmds.contains('kgsl') and with_gallium_zink)
++elif ['gnu', 'banan_os'].contains(host_machine.system()) or (freedreno_kmds.contains('kgsl') and with_gallium_zink)
+   with_dri_platform = 'pseudo-drm'
+ else
+   # FIXME: haiku doesn't use dri, and xlib doesn't use dri, probably should
+diff -ruN mesa-26.2.7/src/glx/drisw_glx.c mesa-26.2.7-banan_os/src/glx/drisw_glx.c
+--- mesa-26.2.7/src/glx/drisw_glx.c	2026-11-11 18:03:52.000000000 +0200
++++ mesa-26.2.7-banan_os/src/glx/drisw_glx.c	2026-11-16 22:31:22.496605406 +0200
+@@ -23,6 +23,7 @@
+ 
+ #if defined(GLX_DIRECT_RENDERING)
+ 
++#include <stddef.h>
+ #include <xcb/xcb.h>
+ #include <xcb/xproto.h>
+ #include <xcb/shm.h>
+diff -ruN mesa-26.2.7/src/util/detect_os.h mesa-26.2.7-banan_os/src/util/detect_os.h
+--- mesa-26.2.7/src/util/detect_os.h	2026-11-11 18:03:52.000000000 +0200
++++ mesa-26.2.7-banan_os/src/util/detect_os.h	2026-11-16 22:31:22.640733804 +0200
+@@ -91,6 +91,11 @@
+ #define DETECT_OS_POSIX 1
+ #endif
+ 
++#if defined(__banan_os__)
++#define DETECT_OS_BANANOS 1
++#define DETECT_OS_POSIX 1
++#endif
++
+ 
+ /*
+  * Make sure DETECT_OS_* are always defined, so that they can be used with #if
+@@ -146,5 +151,8 @@
+ #ifndef DETECT_OS_MANAGARM
+ #define DETECT_OS_MANAGARM 0
+ #endif
++#ifndef DETECT_OS_BANANOS
++#define DETECT_OS_BANANOS 0
++#endif
+ 
+ #endif /* DETECT_OS_H */
+diff -ruN mesa-26.2.7/src/util/libsync.h mesa-26.2.7-banan_os/src/util/libsync.h
+--- mesa-26.2.7/src/util/libsync.h	2026-11-11 18:03:52.000000000 +0200
++++ mesa-26.2.7-banan_os/src/util/libsync.h	2026-11-16 22:31:22.629607436 +0200
+@@ -43,6 +43,43 @@
+ #include "util/detect_os.h"
+ #include "util/os_file.h"
+ 
++#ifdef __banan_os__
 +#define _IOC_NRBITS    8
 +#define _IOC_TYPEBITS  8
 +#define _IOC_SIZEBITS 14
@@ -52,45 +111,24 @@ diff -ruN mesa-26.1.4/include/drm-uapi/drm.h mesa-26.1.4-banan_os/include/drm-ua
 +#define _IOC_TYPE(nr) (((nr) >> _IOC_TYPESHIFT) & _IOC_TYPEMASK)
 +#define _IOC_NR(nr)   (((nr) >> _IOC_NRSHIFT  ) & _IOC_NRMASK  )
 +#define _IOC_SIZE(nr) (((nr) >> _IOC_SIZESHIFT) & _IOC_SIZEMASK)
- #else
- #include <sys/ioccom.h>
- #endif
-diff -ruN mesa-26.1.4/src/util/detect_os.h mesa-26.1.4-banan_os/src/util/detect_os.h
---- mesa-26.1.4/src/util/detect_os.h	2026-07-01 17:16:13.000000000 +0300
-+++ mesa-26.1.4-banan_os/src/util/detect_os.h	2026-07-05 12:36:41.342028269 +0300
-@@ -91,6 +91,10 @@
- #define DETECT_OS_POSIX 1
- #endif
- 
-+#if defined(__banan_os__)
-+#define DETECT_OS_BANANOS 1
-+#define DETECT_OS_POSIX 1
 +#endif
- 
- /*
-  * Make sure DETECT_OS_* are always defined, so that they can be used with #if
-@@ -146,5 +150,8 @@
- #ifndef DETECT_OS_MANAGARM
- #define DETECT_OS_MANAGARM 0
++
+ #if defined(__cplusplus)
+ extern "C" {
  #endif
-+#ifndef DETECT_OS_BANANOS
-+#define DETECT_OS_BANANOS 0
-+#endif
- 
- #endif /* DETECT_OS_H */
-diff -ruN mesa-26.1.4/src/util/os_misc.c mesa-26.1.4-banan_os/src/util/os_misc.c
---- mesa-26.1.4/src/util/os_misc.c	2026-07-01 17:16:13.000000000 +0300
-+++ mesa-26.1.4-banan_os/src/util/os_misc.c	2026-07-05 12:36:41.310790644 +0300
-@@ -58,7 +58,7 @@
+diff -ruN mesa-26.2.7/src/util/os_misc.c mesa-26.2.7-banan_os/src/util/os_misc.c
+--- mesa-26.2.7/src/util/os_misc.c	2026-11-11 18:03:52.000000000 +0200
++++ mesa-26.2.7-banan_os/src/util/os_misc.c	2026-11-16 22:31:22.632104981 +0200
+@@ -60,7 +60,7 @@
  #  include <unistd.h>
- #  include <log/log.h>
- #  include <cutils/properties.h>
+ #  include <android/log.h>
+ #  include <sys/system_properties.h>
 -#elif DETECT_OS_LINUX || DETECT_OS_CYGWIN || DETECT_OS_SOLARIS || DETECT_OS_HURD || DETECT_OS_MANAGARM
 +#elif DETECT_OS_LINUX || DETECT_OS_CYGWIN || DETECT_OS_SOLARIS || DETECT_OS_HURD || DETECT_OS_MANAGARM || DETECT_OS_BANANOS
  #  include <unistd.h>
  #elif DETECT_OS_OPENBSD || DETECT_OS_FREEBSD
  #  include <sys/resource.h>
-@@ -470,6 +470,15 @@
+@@ -474,6 +474,15 @@
  
     *size = ((uint64_t)vm_stats.free_count + (uint64_t)vm_stats.inactive_count) * PAGE_SIZE;
     return true;
@@ -106,53 +144,22 @@ diff -ruN mesa-26.1.4/src/util/os_misc.c mesa-26.1.4-banan_os/src/util/os_misc.c
  #else
     return false;
  #endif
-diff -ruN mesa-26.1.4/src/util/u_process.c mesa-26.1.4-banan_os/src/util/u_process.c
---- mesa-26.1.4/src/util/u_process.c	2026-07-01 17:16:13.000000000 +0300
-+++ mesa-26.1.4-banan_os/src/util/u_process.c	2026-07-05 12:36:41.320229357 +0300
-@@ -48,7 +48,7 @@
- #include <sys/sysctl.h>
- #endif
- 
--#if DETECT_OS_LINUX
-+#if DETECT_OS_LINUX || DETECT_OS_BANANOS
- #include <fcntl.h>
- #endif
- 
-@@ -163,6 +163,21 @@
-    get_image_info(B_CURRENT_TEAM, &info);
-    return strdup(info.name);
+diff -ruN mesa-26.2.7/src/util/u_process.c mesa-26.2.7-banan_os/src/util/u_process.c
+--- mesa-26.2.7/src/util/u_process.c	2026-11-11 18:03:52.000000000 +0200
++++ mesa-26.2.7-banan_os/src/util/u_process.c	2026-11-16 22:31:22.632960614 +0200
+@@ -101,7 +101,7 @@
+ {
+    return strdup(program_invocation_short_name);
  }
-+#elif DETECT_OS_BANANOS
-+static char *
-+__getProgramName()
-+{
-+   char *progname = NULL;
-+   char buf[PATH_MAX];
-+   if (readlink("/proc/self/exe", buf, sizeof(buf)) > 0) {
-+      progname = strrchr(buf, '/');
-+      if (progname)
-+         progname++;
-+      else
-+         progname = buf;
-+   }
-+   return strdup(progname);
-+}
- #else
- #define GET_PROGRAM_NAME_NOT_AVAILABLE
+-#elif defined(__FreeBSD__) || defined(__DragonFly__) || defined(__APPLE__) || DETECT_OS_ANDROID || defined(__NetBSD__)
++#elif defined(__FreeBSD__) || defined(__DragonFly__) || defined(__APPLE__) || DETECT_OS_ANDROID || defined(__NetBSD__) || DETECT_OS_BANANOS
+ #if defined(__NetBSD__)
+ #    include <sys/param.h>
  #endif
-@@ -269,7 +284,7 @@
-       cmdline[size - 1] = 0;
-       return true;
-    }
--#elif DETECT_OS_LINUX
-+#elif DETECT_OS_LINUX || DETECT_OS_BANANOS
-    int f = open("/proc/self/cmdline", O_RDONLY);
-    if (f != -1) {
-       const int n = read(f, cmdline, size - 1);
-diff -ruN mesa-26.1.4/src/util/u_thread.c mesa-26.1.4-banan_os/src/util/u_thread.c
---- mesa-26.1.4/src/util/u_thread.c	2026-07-01 17:16:13.000000000 +0300
-+++ mesa-26.1.4-banan_os/src/util/u_thread.c	2026-07-05 12:36:41.338559292 +0300
-@@ -71,7 +71,7 @@
+diff -ruN mesa-26.2.7/src/util/u_thread.c mesa-26.2.7-banan_os/src/util/u_thread.c
+--- mesa-26.2.7/src/util/u_thread.c	2026-11-11 18:03:52.000000000 +0200
++++ mesa-26.2.7-banan_os/src/util/u_thread.c	2026-11-16 22:31:22.639475044 +0200
+@@ -97,7 +97,7 @@
  void u_thread_setname( const char *name )
  {
  #if defined(HAVE_PTHREAD)
@@ -161,7 +168,7 @@ diff -ruN mesa-26.1.4/src/util/u_thread.c mesa-26.1.4-banan_os/src/util/u_thread
     int ret = pthread_setname_np(pthread_self(), name);
     if (ret == ERANGE) {
        char buf[16];
-@@ -150,7 +150,7 @@
+@@ -176,7 +176,7 @@
  int64_t
  util_thread_get_time_nano(thrd_t thread)
  {

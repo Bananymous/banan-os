@@ -1,12 +1,11 @@
 #!/bin/bash ../install.sh
 
 NAME='mesa'
-VERSION='26.1.4'
-DOWNLOAD_URL="https://archive.mesa3d.org/mesa-$VERSION.tar.xz#072705caa9adf4740f1489194b13e278ad959166863b5271fe423a86353c9ab6"
+VERSION='26.2.7'
+DOWNLOAD_URL="https://archive.mesa3d.org/mesa-$VERSION.tar.xz#04294f75d22e9f61cd1e050206bc48b3d39366e788f1803a3368e3d5a872ce18"
 SPLIT_PACKAGES=('mesa-common' 'mesa-osmesa' 'mesa-glx')
 DEPENDENCIES=(
 	'expat'
-	'libdrm'
 	'libX11'
 	'libXext'
 	'libXfixes'
@@ -117,7 +116,6 @@ get_split_info() {
 			DEPENDENCIES=(
 				'mesa-common'
 				'expat'
-				'libdrm'
 				'zlib'
 				'zstd'
 			)
@@ -133,7 +131,6 @@ get_split_info() {
 			DEPENDENCIES=(
 				'mesa-common'
 				'expat'
-				'libdrm'
 				'libX11'
 				'libXext'
 				'libXfixes'
@@ -149,22 +146,15 @@ get_split_info() {
 				'/usr/include/EGL/eglext.h'
 				'/usr/include/EGL/eglmesaext.h'
 				'/usr/include/EGL/eglplatform.h'
-				'/usr/include/gbm_backend_abi.h'
-				'/usr/include/gbm.h'
 				'/usr/include/GL/glx.h'
 				'/usr/include/GL/glxext.h'
 				'/usr/include/GL/internal/dri_interface.h'
-				'/usr/lib/dri/kms_swrast_dri.so'
 				'/usr/lib/dri/libdril_dri.so'
 				'/usr/lib/dri/swrast_dri.so'
-				'/usr/lib/gbm/dri_gbm.so'
 				'/usr/lib/libEGL.so.1.0.0'
 				'/usr/lib/libEGL.so.1'
 				'/usr/lib/libEGL.so'
 				"/usr/lib/libgallium-$VERSION.so"
-				'/usr/lib/libgbm.so.1.0.0'
-				'/usr/lib/libgbm.so.1'
-				'/usr/lib/libgbm.so'
 				'/usr/lib/libGL.so.1.2.0'
 				'/usr/lib/libGL.so.1'
 				'/usr/lib/libGL.so'
@@ -176,7 +166,6 @@ get_split_info() {
 				'/usr/lib/libGLESv2.so'
 				'/usr/lib/pkgconfig/dri.pc'
 				'/usr/lib/pkgconfig/egl.pc'
-				'/usr/lib/pkgconfig/gbm.pc'
 				'/usr/lib/pkgconfig/gl.pc'
 				'/usr/lib/pkgconfig/glesv1_cm.pc'
 				'/usr/lib/pkgconfig/glesv2.pc'

@@ -1,7 +1,7 @@
-diff -ruN mesa-26.1.4/include/GL/osmesa.h mesa-26.1.4-banan_os/include/GL/osmesa.h
---- mesa-26.1.4/include/GL/osmesa.h	1970-01-01 02:00:00.000000000 +0200
-+++ mesa-26.1.4-banan_os/include/GL/osmesa.h	2026-07-05 04:20:13.927530490 +0300
-@@ -0,0 +1,332 @@
+diff -ruN mesa-26.2.7/include/GL/osmesa.h mesa-26.2.7-banan_os/include/GL/osmesa.h
+--- mesa-26.2.7/include/GL/osmesa.h	1970-01-01 02:00:00.000000000 +0200
++++ mesa-26.2.7-banan_os/include/GL/osmesa.h	2026-11-16 22:31:16.266570937 +0200
+@@ -0,0 +1,318 @@
 +/*
 + * Mesa 3-D graphics library
 + * 
@@ -314,29 +314,15 @@ diff -ruN mesa-26.1.4/include/GL/osmesa.h mesa-26.1.4-banan_os/include/GL/osmesa
 +OSMesaColorClamp(GLboolean enable);
 +
 +
-+/**
-+ * Enable/disable Gallium post-process filters.
-+ * This should be called after a context is created, but before it is
-+ * made current for the first time.  After a context has been made
-+ * current, this function has no effect.
-+ * If the enable_value param is zero, the filter is disabled.  Otherwise
-+ * the filter is enabled, and the value may control the filter's quality.
-+ * New in Mesa 10.0
-+ */
-+GLAPI void APIENTRY
-+OSMesaPostprocess(OSMesaContext osmesa, const char *filter,
-+                  unsigned enable_value);
-+
-+
 +#ifdef __cplusplus
 +}
 +#endif
 +
 +
 +#endif
-diff -ruN mesa-26.1.4/include/meson.build mesa-26.1.4-banan_os/include/meson.build
---- mesa-26.1.4/include/meson.build	2026-07-01 17:16:13.000000000 +0300
-+++ mesa-26.1.4-banan_os/include/meson.build	2026-07-05 04:20:13.934374363 +0300
+diff -ruN mesa-26.2.7/include/meson.build mesa-26.2.7-banan_os/include/meson.build
+--- mesa-26.2.7/include/meson.build	2026-11-11 18:03:52.000000000 +0200
++++ mesa-26.2.7-banan_os/include/meson.build	2026-11-16 22:31:16.272398403 +0200
 @@ -78,6 +78,10 @@
    )
  endif
@@ -348,10 +334,10 @@ diff -ruN mesa-26.1.4/include/meson.build mesa-26.1.4-banan_os/include/meson.bui
  if with_dri
    install_headers('GL/internal/dri_interface.h', subdir : 'GL/internal')
  endif
-diff -ruN mesa-26.1.4/meson.build mesa-26.1.4-banan_os/meson.build
---- mesa-26.1.4/meson.build	2026-07-01 17:16:13.000000000 +0300
-+++ mesa-26.1.4-banan_os/meson.build	2026-07-05 04:20:13.894859382 +0300
-@@ -107,6 +107,7 @@
+diff -ruN mesa-26.2.7/meson.build mesa-26.2.7-banan_os/meson.build
+--- mesa-26.2.7/meson.build	2026-11-11 18:03:52.000000000 +0200
++++ mesa-26.2.7-banan_os/meson.build	2026-11-16 22:31:16.264496983 +0200
+@@ -108,6 +108,7 @@
  with_aco_tests = get_option('build-aco-tests')
  with_glx_read_only_text = get_option('glx-read-only-text')
  with_glx_direct = get_option('glx-direct')
@@ -359,7 +345,7 @@ diff -ruN mesa-26.1.4/meson.build mesa-26.1.4-banan_os/meson.build
  with_vulkan_overlay_layer = get_option('vulkan-layers').contains('overlay')
  with_vulkan_device_select_layer = get_option('vulkan-layers').contains('device-select')
  with_vulkan_screenshot_layer = get_option('vulkan-layers').contains('screenshot')
-@@ -2152,6 +2153,17 @@
+@@ -2249,6 +2250,17 @@
    pre_args += '-DHAVE_LIBUNWIND'
  endif
  
@@ -377,18 +363,18 @@ diff -ruN mesa-26.1.4/meson.build mesa-26.1.4-banan_os/meson.build
  # TODO: symbol mangling
  
  with_wayland_bind_display = with_platform_wayland and get_option('legacy-wayland').contains('bind-wayland-display')
-@@ -2567,6 +2579,7 @@
+@@ -2666,6 +2678,7 @@
      gallium_frontends += 'rusticl'
    endif
    gallium_summary += {'Frontends': gallium_frontends}
 +  gallium_summary += {'Off-screen rendering (OSMesa)': with_osmesa ? 'lib' + osmesa_lib_name : false}
    gallium_summary += {'HUD lm-sensors': dep_lmsensors.found()}
+   gallium_summary += {'GFX/Compute': with_gfx_compute}
  endif
- summary(gallium_summary, section: 'Gallium', bool_yn: true, list_sep: ' ')
-diff -ruN mesa-26.1.4/meson.options mesa-26.1.4-banan_os/meson.options
---- mesa-26.1.4/meson.options	2026-07-01 17:16:13.000000000 +0300
-+++ mesa-26.1.4-banan_os/meson.options	2026-07-05 04:20:13.784091541 +0300
-@@ -547,6 +547,13 @@
+diff -ruN mesa-26.2.7/meson.options mesa-26.2.7-banan_os/meson.options
+--- mesa-26.2.7/meson.options	2026-11-11 18:03:52.000000000 +0200
++++ mesa-26.2.7-banan_os/meson.options	2026-11-16 22:31:16.264253654 +0200
+@@ -554,6 +554,13 @@
  )
  
  option(
@@ -402,9 +388,9 @@ diff -ruN mesa-26.1.4/meson.options mesa-26.1.4-banan_os/meson.options
    'tools',
    type : 'array',
    value : [],
-diff -ruN mesa-26.1.4/src/gallium/frontends/osmesa/meson.build mesa-26.1.4-banan_os/src/gallium/frontends/osmesa/meson.build
---- mesa-26.1.4/src/gallium/frontends/osmesa/meson.build	1970-01-01 02:00:00.000000000 +0200
-+++ mesa-26.1.4-banan_os/src/gallium/frontends/osmesa/meson.build	2026-07-05 04:20:14.131684982 +0300
+diff -ruN mesa-26.2.7/src/gallium/frontends/osmesa/meson.build mesa-26.2.7-banan_os/src/gallium/frontends/osmesa/meson.build
+--- mesa-26.2.7/src/gallium/frontends/osmesa/meson.build	1970-01-01 02:00:00.000000000 +0200
++++ mesa-26.2.7-banan_os/src/gallium/frontends/osmesa/meson.build	2026-11-16 22:31:16.904479861 +0200
 @@ -0,0 +1,19 @@
 +# Copyright © 2017-2018 Intel Corporation
 +# SPDX-License-Identifier: MIT
@@ -425,10 +411,10 @@ diff -ruN mesa-26.1.4/src/gallium/frontends/osmesa/meson.build mesa-26.1.4-banan
 +  ],
 +  dependencies : [idep_mesautil],
 +)
-diff -ruN mesa-26.1.4/src/gallium/frontends/osmesa/osmesa.c mesa-26.1.4-banan_os/src/gallium/frontends/osmesa/osmesa.c
---- mesa-26.1.4/src/gallium/frontends/osmesa/osmesa.c	1970-01-01 02:00:00.000000000 +0200
-+++ mesa-26.1.4-banan_os/src/gallium/frontends/osmesa/osmesa.c	2026-07-05 04:20:14.131719693 +0300
-@@ -0,0 +1,1029 @@
+diff -ruN mesa-26.2.7/src/gallium/frontends/osmesa/osmesa.c mesa-26.2.7-banan_os/src/gallium/frontends/osmesa/osmesa.c
+--- mesa-26.2.7/src/gallium/frontends/osmesa/osmesa.c	1970-01-01 02:00:00.000000000 +0200
++++ mesa-26.2.7-banan_os/src/gallium/frontends/osmesa/osmesa.c	2026-11-16 22:31:16.904512687 +0200
+@@ -0,0 +1,947 @@
 +/*
 + * Copyright (c) 2013  Brian Paul   All Rights Reserved.
 + *
@@ -507,9 +493,6 @@ diff -ruN mesa-26.1.4/src/gallium/frontends/osmesa/osmesa.c mesa-26.1.4-banan_os
 +#include "util/u_inlines.h"
 +#include "util/u_memory.h"
 +
-+#include "postprocess/filters.h"
-+#include "postprocess/postprocess.h"
-+
 +#include "frontend/api.h"
 +
 +
@@ -537,8 +520,6 @@ diff -ruN mesa-26.1.4/src/gallium/frontends/osmesa/osmesa.c mesa-26.1.4-banan_os
 +{
 +   struct st_context *st;
 +
-+   bool ever_used;     /*< Has this context ever been current? */
-+
 +   struct osmesa_buffer *current_buffer;
 +
 +   /* Storage for depth/stencil, if the user has requested access.  The backing
@@ -555,10 +536,6 @@ diff -ruN mesa-26.1.4/src/gallium/frontends/osmesa/osmesa.c mesa-26.1.4-banan_os
 +   GLint user_row_length; /*< user-specified number of pixels per row */
 +   GLboolean y_up;        /*< TRUE  -> Y increases upward */
 +                          /*< FALSE -> Y increases downward */
-+
-+   /** Which postprocessing filters are enabled. */
-+   unsigned pp_enabled[PP_FILTERS];
-+   struct pp_queue_t *pp;
 +};
 +
 +/**
@@ -791,28 +768,6 @@ diff -ruN mesa-26.1.4/src/gallium/frontends/osmesa/osmesa.c mesa-26.1.4-banan_os
 +
 +   if (statt != ST_ATTACHMENT_FRONT_LEFT)
 +      return false;
-+
-+   if (osmesa->pp) {
-+      struct pipe_resource *zsbuf = NULL;
-+      unsigned i;
-+
-+      /* Find the z/stencil buffer if there is one */
-+      for (i = 0; i < ARRAY_SIZE(osbuffer->textures); i++) {
-+         struct pipe_resource *res = osbuffer->textures[i];
-+         if (res) {
-+            const struct util_format_description *desc =
-+               util_format_description(res->format);
-+
-+            if (util_format_has_depth(desc)) {
-+               zsbuf = res;
-+               break;
-+            }
-+         }
-+      }
-+
-+      /* run the postprocess stage(s) */
-+      pp_run(osmesa->pp, res, res, zsbuf);
-+   }
 +
 +   /* Snapshot the color buffer to the user's buffer. */
 +   bpp = util_format_get_blocksize(osbuffer->visual.color_format);
@@ -1135,7 +1090,6 @@ diff -ruN mesa-26.1.4/src/gallium/frontends/osmesa/osmesa.c mesa-26.1.4-banan_os
 +OSMesaDestroyContext(OSMesaContext osmesa)
 +{
 +   if (osmesa) {
-+      pp_free(osmesa->pp);
 +      st_destroy_context(osmesa->st);
 +      free(osmesa->zs);
 +      FREE(osmesa);
@@ -1217,31 +1171,6 @@ diff -ruN mesa-26.1.4/src/gallium/frontends/osmesa/osmesa.c mesa-26.1.4-banan_os
 +    * to match classic swrast behavior (context's fb starts with the contents of
 +    * your pixel buffer).
 +    */
-+
-+   if (!osmesa->ever_used) {
-+      /* one-time init, just postprocessing for now */
-+      bool any_pp_enabled = false;
-+      unsigned i;
-+
-+      for (i = 0; i < ARRAY_SIZE(osmesa->pp_enabled); i++) {
-+         if (osmesa->pp_enabled[i]) {
-+            any_pp_enabled = true;
-+            break;
-+         }
-+      }
-+
-+      if (any_pp_enabled) {
-+         osmesa->pp = pp_init(osmesa->st->pipe,
-+                              osmesa->pp_enabled,
-+                              osmesa->st->cso_context,
-+                              osmesa->st,
-+                              st_context_invalidate_state);
-+
-+         pp_init_fbos(osmesa->pp, width, height);
-+      }
-+
-+      osmesa->ever_used = true;
-+   }
 +
 +   return GL_TRUE;
 +}
@@ -1409,7 +1338,6 @@ diff -ruN mesa-26.1.4/src/gallium/frontends/osmesa/osmesa.c mesa-26.1.4-banan_os
 +   { "OSMesaGetColorBuffer", (OSMESAproc) OSMesaGetColorBuffer },
 +   { "OSMesaGetProcAddress", (OSMESAproc) OSMesaGetProcAddress },
 +   { "OSMesaColorClamp", (OSMESAproc) OSMesaColorClamp },
-+   { "OSMesaPostprocess", (OSMESAproc) OSMesaPostprocess },
 +   { NULL, NULL }
 +};
 +
@@ -1434,33 +1362,9 @@ diff -ruN mesa-26.1.4/src/gallium/frontends/osmesa/osmesa.c mesa-26.1.4-banan_os
 +   _mesa_ClampColor(GL_CLAMP_FRAGMENT_COLOR_ARB,
 +                    enable ? GL_TRUE : GL_FIXED_ONLY_ARB);
 +}
-+
-+
-+GLAPI void GLAPIENTRY
-+OSMesaPostprocess(OSMesaContext osmesa, const char *filter,
-+                  unsigned enable_value)
-+{
-+   if (!osmesa->ever_used) {
-+      /* We can only enable/disable postprocess filters before a context
-+       * is made current for the first time.
-+       */
-+      unsigned i;
-+
-+      for (i = 0; i < PP_FILTERS; i++) {
-+         if (strcmp(pp_filters[i].name, filter) == 0) {
-+            osmesa->pp_enabled[i] = enable_value;
-+            return;
-+         }
-+      }
-+      debug_warning("OSMesaPostprocess(unknown filter)\n");
-+   }
-+   else {
-+      debug_warning("Calling OSMesaPostprocess() after OSMesaMakeCurrent()\n");
-+   }
-+}
-diff -ruN mesa-26.1.4/src/gallium/meson.build mesa-26.1.4-banan_os/src/gallium/meson.build
---- mesa-26.1.4/src/gallium/meson.build	2026-07-01 17:16:13.000000000 +0300
-+++ mesa-26.1.4-banan_os/src/gallium/meson.build	2026-07-05 04:20:14.035181849 +0300
+diff -ruN mesa-26.2.7/src/gallium/meson.build mesa-26.2.7-banan_os/src/gallium/meson.build
+--- mesa-26.2.7/src/gallium/meson.build	2026-11-11 18:03:52.000000000 +0200
++++ mesa-26.2.7-banan_os/src/gallium/meson.build	2026-11-16 22:31:16.904551240 +0200
 @@ -232,6 +232,10 @@
    subdir('frontends/dri')
    subdir('targets/dri')
@@ -1472,9 +1376,9 @@ diff -ruN mesa-26.1.4/src/gallium/meson.build mesa-26.1.4-banan_os/src/gallium/m
  if with_platform_haiku
    subdir('frontends/hgl')
  endif
-diff -ruN mesa-26.1.4/src/gallium/targets/osmesa/meson.build mesa-26.1.4-banan_os/src/gallium/targets/osmesa/meson.build
---- mesa-26.1.4/src/gallium/targets/osmesa/meson.build	1970-01-01 02:00:00.000000000 +0200
-+++ mesa-26.1.4-banan_os/src/gallium/targets/osmesa/meson.build	2026-07-05 04:20:14.212936332 +0300
+diff -ruN mesa-26.2.7/src/gallium/targets/osmesa/meson.build mesa-26.2.7-banan_os/src/gallium/targets/osmesa/meson.build
+--- mesa-26.2.7/src/gallium/targets/osmesa/meson.build	1970-01-01 02:00:00.000000000 +0200
++++ mesa-26.2.7-banan_os/src/gallium/targets/osmesa/meson.build	2026-11-16 22:31:22.453505362 +0200
 @@ -0,0 +1,36 @@
 +# Copyright © 2017 Intel Corporation
 +# SPDX-License-Identifier: MIT
@@ -1512,10 +1416,10 @@ diff -ruN mesa-26.1.4/src/gallium/targets/osmesa/meson.build mesa-26.1.4-banan_o
 +  libraries : libosmesa,
 +  libraries_private : gl_priv_libs,
 +)
-diff -ruN mesa-26.1.4/src/gallium/targets/osmesa/osmesa.sym mesa-26.1.4-banan_os/src/gallium/targets/osmesa/osmesa.sym
---- mesa-26.1.4/src/gallium/targets/osmesa/osmesa.sym	1970-01-01 02:00:00.000000000 +0200
-+++ mesa-26.1.4-banan_os/src/gallium/targets/osmesa/osmesa.sym	2026-07-05 04:20:14.212992485 +0300
-@@ -0,0 +1,19 @@
+diff -ruN mesa-26.2.7/src/gallium/targets/osmesa/osmesa.sym mesa-26.2.7-banan_os/src/gallium/targets/osmesa/osmesa.sym
+--- mesa-26.2.7/src/gallium/targets/osmesa/osmesa.sym	1970-01-01 02:00:00.000000000 +0200
++++ mesa-26.2.7-banan_os/src/gallium/targets/osmesa/osmesa.sym	2026-11-16 22:31:22.453591198 +0200
+@@ -0,0 +1,18 @@
 +{
 +	global:
 +		OSMesaColorClamp;
@@ -1530,14 +1434,13 @@ diff -ruN mesa-26.1.4/src/gallium/targets/osmesa/osmesa.sym mesa-26.1.4-banan_os
 +		OSMesaGetProcAddress;
 +		OSMesaMakeCurrent;
 +		OSMesaPixelStore;
-+		OSMesaPostprocess;
 +		gl*;
 +	local:
 +		*;
 +};
-diff -ruN mesa-26.1.4/src/gallium/targets/osmesa/osmesa_target.c mesa-26.1.4-banan_os/src/gallium/targets/osmesa/osmesa_target.c
---- mesa-26.1.4/src/gallium/targets/osmesa/osmesa_target.c	1970-01-01 02:00:00.000000000 +0200
-+++ mesa-26.1.4-banan_os/src/gallium/targets/osmesa/osmesa_target.c	2026-07-05 04:20:14.213049196 +0300
+diff -ruN mesa-26.2.7/src/gallium/targets/osmesa/osmesa_target.c mesa-26.2.7-banan_os/src/gallium/targets/osmesa/osmesa_target.c
+--- mesa-26.2.7/src/gallium/targets/osmesa/osmesa_target.c	1970-01-01 02:00:00.000000000 +0200
++++ mesa-26.2.7-banan_os/src/gallium/targets/osmesa/osmesa_target.c	2026-11-16 22:31:22.453657966 +0200
 @@ -0,0 +1,56 @@
 +/*
 + * Copyright (c) 2013  Brian Paul   All Rights Reserved.
