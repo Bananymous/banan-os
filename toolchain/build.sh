@@ -17,9 +17,9 @@ CMAKE_VERSION="cmake-3.26.6-linux-x86_64"
 CMAKE_TAR="$CMAKE_VERSION.tar.gz"
 CMAKE_URL="https://cmake.org/files/v3.26/$CMAKE_TAR"
 
-MESON_VERSION="meson-1.10.0"
+MESON_VERSION="meson-1.12.1"
 MESON_TAR="$MESON_VERSION.tar.gz"
-MESON_URL="https://github.com/mesonbuild/meson/releases/download/1.10.0/$MESON_TAR"
+MESON_URL="https://github.com/mesonbuild/meson/releases/download/1.12.1/$MESON_TAR"
 
 XBPS_VERSION="0.60.7"
 XBPS_TAR="$XBPS_VERSION.tar.gz"
