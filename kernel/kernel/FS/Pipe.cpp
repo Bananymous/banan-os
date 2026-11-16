@@ -66,7 +66,7 @@ namespace Kernel
 
 		if (status_flags & O_NONBLOCK)
 		{
-			if ((status_flags & O_WRONLY) && pipe->m_writing_count == 0)
+			if ((status_flags & O_WRONLY) && pipe->m_reading_count == 0)
 				return BAN::Error::from_errno(ENXIO);
 			return BAN::RefPtr<Inode>(pipe);
 		}
@@ -136,16 +136,10 @@ namespace Kernel
 	void Pipe::on_clone(int status_flags)
 	{
 		if (status_flags & O_WRONLY)
-		{
-			[[maybe_unused]] auto old_writing_count = m_writing_count.fetch_add(1);
-			ASSERT(old_writing_count > 0);
-		}
+			m_writing_count++;
 
 		if (status_flags & O_RDONLY)
-		{
-			[[maybe_unused]] auto old_reading_count = m_reading_count.fetch_add(1);
-			ASSERT(old_reading_count > 0);
-		}
+			m_reading_count++;
 	}
 
 	void Pipe::on_close(int status_flags)
@@ -153,22 +147,12 @@ namespace Kernel
 		LockGuard _(m_mutex);
 
 		if (status_flags & O_WRONLY)
-		{
-			auto old_writing_count = m_writing_count.fetch_sub(1);
-			ASSERT(old_writing_count > 0);
-			if (old_writing_count != 1)
-				return;
-			epoll_notify(EPOLLHUP);
-		}
+			if (--m_writing_count == 0)
+				epoll_notify(EPOLLHUP);
 
 		if (status_flags & O_RDONLY)
-		{
-			auto old_reading_count = m_reading_count.fetch_sub(1);
-			ASSERT(old_reading_count > 0);
-			if (old_reading_count != 1)
-				return;
-			epoll_notify(EPOLLERR);
-		}
+			if (--m_reading_count == 0)
+				epoll_notify(EPOLLERR);
 
 		m_thread_blocker.unblock();
 	}
@@ -194,15 +178,6 @@ namespace Kernel
 				break;
 		}
 
-		m_mode = m_named_inode->mode().mode;
-
-		m_uid = m_named_inode->uid();
-		m_gid = m_named_inode->gid();
-
-		m_atime = m_named_inode->atime();
-		m_mtime = m_named_inode->mtime();
-		m_ctime = m_named_inode->ctime();
-
 		return {};
 	}
 
@@ -225,8 +200,6 @@ namespace Kernel
 		const size_t to_copy = BAN::Math::min<size_t>(buffer.size(), m_buffer->size());
 		memcpy(buffer.data(), m_buffer->get_data().data(), to_copy);
 		m_buffer->pop(to_copy);
-
-		m_atime = SystemTimer::get().real_time();
 
 		epoll_notify(EPOLLOUT);
 
@@ -251,10 +224,6 @@ namespace Kernel
 
 		const size_t to_copy = BAN::Math::min(buffer.size(), m_buffer->free());
 		m_buffer->push(buffer.slice(0, to_copy));
-
-		timespec current_time = SystemTimer::get().real_time();
-		m_mtime = current_time;
-		m_ctime = current_time;
 
 		epoll_notify(EPOLLIN);
 
