@@ -191,7 +191,7 @@ pushd "$BANAN_ROOT_DIR" >/dev/null
 ./bos all && ./bos install || exit 1
 popd >/dev/null
 
-for dependency in "${DEPENDENCIES[@]}"; do
+for dependency in "${DEPENDENCIES[@]}" "${BUILD_DEPENDENCIES[@]}"; do
 	if [ ! -d "../$dependency" ]; then
 		echo "Could not find dependency '$dependency' or port '$NAME'"
 		exit 1
