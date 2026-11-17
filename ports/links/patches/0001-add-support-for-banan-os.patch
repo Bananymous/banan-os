@@ -1,7 +1,7 @@
 diff -ruN links-2.30/banan_os.cpp links-2.30-banan_os/banan_os.cpp
 --- links-2.30/banan_os.cpp	1970-01-01 02:00:00.000000000 +0200
 +++ links-2.30-banan_os/banan_os.cpp	2025-06-11 11:37:19.635667846 +0300
-@@ -0,0 +1,392 @@
+@@ -0,0 +1,393 @@
 +#include "cfg.h"
 +
 +#ifdef GRDRV_BANAN_OS
@@ -9,6 +9,7 @@ diff -ruN links-2.30/banan_os.cpp links-2.30-banan_os/banan_os.cpp
 +extern "C" {
 +#include "links.h"
 +#undef G
++#undef DUMMY
 +}
 +
 +#include <BAN/UTF8.h>
